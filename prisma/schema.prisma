@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  user_id       String  @id @default(uuid()) @db.Uuid
+  name          String
+  email         String  @unique
+  password_hash String
+  role          String?
+  status        String  @default("active")
+
+  assignedLeads Lead[] @relation("LeadAssignedUser")
+  createdLeads  Lead[] @relation("LeadCreatedBy")
+  updatedLeads  Lead[] @relation("LeadUpdatedBy")
+
+  leadComments LeadComment[]
+
+  createdCustomers Customer[] @relation("CustomerCreatedBy")
+  updatedCustomers Customer[] @relation("CustomerUpdatedBy")
+
+  createdDeals Deal[] @relation("DealCreatedBy")
+  updatedDeals Deal[] @relation("DealUpdatedBy")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Lead {
+  id String @id @default(uuid()) @db.Uuid
+
+  source          String?
+  source_url      String?
+  extraction_date DateTime?
+
+  lead_type String
+  // Customer, Vendor, AlliedSP, BConsultant
+
+  name         String?
+  email        String?
+  phone        String?
+  address      String?
+  company_name String?
+  website      String?
+
+  verification_status String @default("new")
+  // new, pending_verification, verified, not_interested, churned
+
+  confidence Float?
+
+  crm_stage String @default("new")
+  // new, contacted, qualified, proposal_sent, converted, lost, onboarded
+
+  assigned_to  String? @db.Uuid
+  assignedUser User?   @relation("LeadAssignedUser", fields: [assigned_to], references: [user_id])
+
+  created_by String? @db.Uuid
+  createdBy  User?   @relation("LeadCreatedBy", fields: [created_by], references: [user_id])
+
+  updated_by String? @db.Uuid
+  updatedBy  User?   @relation("LeadUpdatedBy", fields: [updated_by], references: [user_id])
+
+  comments LeadComment[]
+
+  customer Customer?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("leads")
+}
+
+model LeadComment {
+  id String @id @default(uuid()) @db.Uuid
+
+  lead_id String @db.Uuid
+  lead    Lead   @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+
+  updated_by String @db.Uuid
+  updatedBy  User   @relation(fields: [updated_by], references: [user_id])
+
+  comment String
+
+  created_at DateTime @default(now())
+
+  @@map("lead_comments")
+}
+
+model Customer {
+  id String @id @default(uuid()) @db.Uuid
+
+  lead_id String? @unique @db.Uuid
+  lead    Lead?   @relation(fields: [lead_id], references: [id], onDelete: SetNull)
+
+  customer_type String?
+
+  deals Deal[]
+
+  status String @default("active")
+  // active, inactive, blacklisted, archived
+
+  name         String?
+  email        String?
+  phone        String?
+  address      String?
+  company_name String?
+  website      String?
+
+  contact_info String?
+  comments     String?
+
+  created_by String? @db.Uuid
+  createdBy  User?   @relation("CustomerCreatedBy", fields: [created_by], references: [user_id])
+
+  updated_by String? @db.Uuid
+  updatedBy  User?   @relation("CustomerUpdatedBy", fields: [updated_by], references: [user_id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("customers")
+}
+
+model Deal {
+  id String @id @default(uuid()) @db.Uuid
+
+  customer_id String   @db.Uuid
+  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  offer String
+
+  status String @default("new")
+  // new, qualified, proposal, negotiation, won, lost
+
+  comment String?
+
+  created_by String? @db.Uuid
+  createdBy  User?   @relation("DealCreatedBy", fields: [created_by], references: [user_id])
+
+  updated_by String? @db.Uuid
+  updatedBy  User?   @relation("DealUpdatedBy", fields: [updated_by], references: [user_id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("deals")
+}
