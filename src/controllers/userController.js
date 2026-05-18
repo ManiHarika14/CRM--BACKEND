@@ -3,9 +3,47 @@ const prisma = require("../utils/prisma");
 
 const getUsers = async (req, res) => {
   try {
+    const { status = "active", role, search } = req.query;
+
+    const where = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (search && search.trim()) {
+      const cleanSearch = search.trim();
+
+      where.OR = [
+        {
+          name: {
+            contains: cleanSearch,
+            mode: "insensitive",
+          },
+        },
+        {
+          email: {
+            contains: cleanSearch,
+            mode: "insensitive",
+          },
+        },
+        {
+          role: {
+            contains: cleanSearch,
+            mode: "insensitive",
+          },
+        },
+      ];
+    }
+
     const users = await prisma.user.findMany({
+      where,
       orderBy: {
-        created_at: "desc",
+        name: "asc",
       },
       select: {
         user_id: true,
