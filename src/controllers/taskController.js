@@ -1,0 +1,890 @@
+const prisma = require("../utils/prisma");
+const { createActivity } = require("../utils/activityLogger");
+
+const TASK_STATUSES = ["pending", "in_progress", "completed", "cancelled"];
+const TASK_PRIORITIES = ["low", "medium", "high", "urgent"];
+
+const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
+
+const isValidUUID = (value) => {
+  if (!value) return false;
+
+  const uuid = String(value).trim();
+
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  return uuidRegex.test(uuid);
+};
+
+const cleanString = (value) => {
+  if (typeof value !== "string") return value;
+  const cleaned = value.trim();
+  return cleaned.length ? cleaned : null;
+};
+
+const getLoggedInUserId = (req) => {
+  const userId =
+    req.user?.user_id ||
+    req.user?.id ||
+    req.user?.user?.user_id ||
+    req.user?.user?.id ||
+    req.userId ||
+    null;
+
+  return userId ? String(userId).trim() : null;
+};
+
+const isValidDate = (value) => {
+  if (!value) return true;
+
+  const date = new Date(value);
+
+  return !Number.isNaN(date.getTime());
+};
+
+const taskInclude = {
+  customer: {
+    select: {
+      id: true,
+      customer_type: true,
+      status: true,
+      name: true,
+      email: true,
+      phone: true,
+      company_name: true,
+      lead_id: true,
+    },
+  },
+  deal: {
+    select: {
+      id: true,
+      customer_id: true,
+      offer: true,
+      status: true,
+    },
+  },
+  assignedUser: {
+    select: {
+      user_id: true,
+      name: true,
+      email: true,
+      role: true,
+      status: true,
+    },
+  },
+  createdBy: {
+    select: {
+      user_id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  },
+  updatedBy: {
+    select: {
+      user_id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  },
+};
+
+const createTask = async (req, res) => {
+  try {
+    const loggedInUserId = getLoggedInUserId(req);
+
+    const {
+      customer_id,
+      deal_id,
+      assigned_to,
+      title,
+      description,
+      status,
+      priority,
+      due_date,
+      comment,
+    } = req.body;
+
+    if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
+      return res.status(401).json({
+        message: "Unauthorized. Valid logged-in user is required.",
+      });
+    }
+
+    if (!customer_id || !isValidUUID(customer_id)) {
+      return res.status(400).json({
+        message: "Valid customer_id is required",
+      });
+    }
+
+    if (!assigned_to || !isValidUUID(assigned_to)) {
+      return res.status(400).json({
+        message: "Valid assigned_to user id is required",
+      });
+    }
+
+    const cleanTitle = cleanString(title);
+
+    if (!cleanTitle) {
+      return res.status(400).json({
+        message: "Task title is required",
+      });
+    }
+
+    if (cleanTitle.length > 255) {
+      return res.status(400).json({
+        message: "Task title cannot exceed 255 characters",
+      });
+    }
+
+    const cleanDescription = cleanString(description);
+
+    if (cleanDescription && cleanDescription.length > 2000) {
+      return res.status(400).json({
+        message: "Description cannot exceed 2000 characters",
+      });
+    }
+
+    const cleanComment = cleanString(comment);
+
+    if (cleanComment && cleanComment.length > 1000) {
+      return res.status(400).json({
+        message: "Comment cannot exceed 1000 characters",
+      });
+    }
+
+    const taskStatus = status ? cleanString(status) : "pending";
+
+    if (!TASK_STATUSES.includes(taskStatus)) {
+      return res.status(400).json({
+        message: "Invalid task status",
+        allowed_statuses: TASK_STATUSES,
+      });
+    }
+
+    const taskPriority = priority ? cleanString(priority) : "medium";
+
+    if (!TASK_PRIORITIES.includes(taskPriority)) {
+      return res.status(400).json({
+        message: "Invalid task priority",
+        allowed_priorities: TASK_PRIORITIES,
+      });
+    }
+
+    if (due_date && !isValidDate(due_date)) {
+      return res.status(400).json({
+        message: "Invalid due_date",
+      });
+    }
+
+    if (deal_id && !isValidUUID(deal_id)) {
+      return res.status(400).json({
+        message: "Invalid deal_id",
+      });
+    }
+
+    const customer = await prisma.customer.findUnique({
+      where: {
+        id: customer_id,
+      },
+    });
+
+    if (!customer) {
+      return res.status(404).json({
+        message: "Customer not found",
+      });
+    }
+
+    if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+      return res.status(400).json({
+        message: `Cannot create task for ${customer.status} customer`,
+      });
+    }
+
+    const assignedUser = await prisma.user.findUnique({
+      where: {
+        user_id: assigned_to,
+      },
+    });
+
+    if (!assignedUser) {
+      return res.status(404).json({
+        message: "Assigned user not found",
+      });
+    }
+
+    if (assignedUser.status !== "active") {
+      return res.status(400).json({
+        message: "Assigned user must be active",
+      });
+    }
+
+    if (deal_id) {
+      const deal = await prisma.deal.findUnique({
+        where: {
+          id: deal_id,
+        },
+      });
+
+      if (!deal) {
+        return res.status(404).json({
+          message: "Deal not found",
+        });
+      }
+
+      if (deal.customer_id !== customer_id) {
+        return res.status(400).json({
+          message: "Deal does not belong to the selected customer",
+        });
+      }
+    }
+
+    const task = await prisma.task.create({
+      data: {
+        customer_id,
+        deal_id: deal_id || null,
+        assigned_to,
+        title: cleanTitle,
+        description: cleanDescription,
+        status: taskStatus,
+        priority: taskPriority,
+        due_date: due_date ? new Date(due_date) : null,
+        comment: cleanComment,
+        created_by: loggedInUserId,
+        updated_by: loggedInUserId,
+      },
+      include: taskInclude,
+    });
+
+    await createActivity({
+      entity_type: "task",
+      entity_id: task.id,
+      action: "task_created",
+      description: `Task created: ${task.title}`,
+      customer_id: task.customer_id,
+      deal_id: task.deal_id,
+      task_id: task.id,
+      created_by: loggedInUserId,
+    });
+
+    return res.status(201).json({
+      message: "Task created successfully",
+      task,
+    });
+  } catch (error) {
+    console.error("Create task error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+const getTasks = async (req, res) => {
+  try {
+    const {
+      search,
+      status,
+      priority,
+      customer_id,
+      deal_id,
+      assigned_to,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+
+    if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+      return res.status(400).json({
+        message: "Page must be a positive integer",
+      });
+    }
+
+    if (
+      !Number.isInteger(limitNumber) ||
+      limitNumber < 1 ||
+      limitNumber > 100
+    ) {
+      return res.status(400).json({
+        message: "Limit must be between 1 and 100",
+      });
+    }
+
+    const where = {};
+
+    if (status) {
+      const cleanStatus = cleanString(status);
+
+      if (!TASK_STATUSES.includes(cleanStatus)) {
+        return res.status(400).json({
+          message: "Invalid task status",
+          allowed_statuses: TASK_STATUSES,
+        });
+      }
+
+      where.status = cleanStatus;
+    }
+
+    if (priority) {
+      const cleanPriority = cleanString(priority);
+
+      if (!TASK_PRIORITIES.includes(cleanPriority)) {
+        return res.status(400).json({
+          message: "Invalid task priority",
+          allowed_priorities: TASK_PRIORITIES,
+        });
+      }
+
+      where.priority = cleanPriority;
+    }
+
+    if (customer_id) {
+      if (!isValidUUID(customer_id)) {
+        return res.status(400).json({
+          message: "Invalid customer_id",
+        });
+      }
+
+      where.customer_id = customer_id;
+    }
+
+    if (deal_id) {
+      if (!isValidUUID(deal_id)) {
+        return res.status(400).json({
+          message: "Invalid deal_id",
+        });
+      }
+
+      where.deal_id = deal_id;
+    }
+
+    if (assigned_to) {
+      if (!isValidUUID(assigned_to)) {
+        return res.status(400).json({
+          message: "Invalid assigned_to user id",
+        });
+      }
+
+      where.assigned_to = assigned_to;
+    }
+
+    if (search && cleanString(search)) {
+      const cleanSearch = cleanString(search);
+
+      where.OR = [
+        {
+          title: {
+            contains: cleanSearch,
+            mode: "insensitive",
+          },
+        },
+        {
+          description: {
+            contains: cleanSearch,
+            mode: "insensitive",
+          },
+        },
+        {
+          comment: {
+            contains: cleanSearch,
+            mode: "insensitive",
+          },
+        },
+        {
+          customer: {
+            name: {
+              contains: cleanSearch,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          customer: {
+            email: {
+              contains: cleanSearch,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          customer: {
+            company_name: {
+              contains: cleanSearch,
+              mode: "insensitive",
+            },
+          },
+        },
+      ];
+    }
+
+    const [total, tasks] = await Promise.all([
+      prisma.task.count({ where }),
+      prisma.task.findMany({
+        where,
+        include: taskInclude,
+        orderBy: {
+          created_at: "desc",
+        },
+        skip: (pageNumber - 1) * limitNumber,
+        take: limitNumber,
+      }),
+    ]);
+
+    return res.status(200).json({
+      message: "Tasks fetched successfully",
+      pagination: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber),
+      },
+      tasks,
+    });
+  } catch (error) {
+    console.error("Get tasks error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+const getTaskById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({
+        message: "Invalid task id",
+      });
+    }
+
+    const task = await prisma.task.findUnique({
+      where: {
+        id,
+      },
+      include: taskInclude,
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Task fetched successfully",
+      task,
+    });
+  } catch (error) {
+    console.error("Get task by id error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+const updateTask = async (req, res) => {
+  try {
+    const loggedInUserId = getLoggedInUserId(req);
+    const { id } = req.params;
+
+    const {
+      customer_id,
+      deal_id,
+      assigned_to,
+      title,
+      description,
+      status,
+      priority,
+      due_date,
+      comment,
+    } = req.body;
+
+    if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
+      return res.status(401).json({
+        message: "Unauthorized. Valid logged-in user is required.",
+      });
+    }
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({
+        message: "Invalid task id",
+      });
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    const data = {
+      updated_by: loggedInUserId,
+    };
+
+    const finalCustomerId = customer_id || existingTask.customer_id;
+
+    if (customer_id !== undefined) {
+      if (!isValidUUID(customer_id)) {
+        return res.status(400).json({
+          message: "Invalid customer_id",
+        });
+      }
+
+      const customer = await prisma.customer.findUnique({
+        where: {
+          id: customer_id,
+        },
+      });
+
+      if (!customer) {
+        return res.status(404).json({
+          message: "Customer not found",
+        });
+      }
+
+      if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+        return res.status(400).json({
+          message: `Cannot assign task to ${customer.status} customer`,
+        });
+      }
+
+      data.customer_id = customer_id;
+    }
+
+    if (assigned_to !== undefined) {
+      if (!isValidUUID(assigned_to)) {
+        return res.status(400).json({
+          message: "Invalid assigned_to user id",
+        });
+      }
+
+      const assignedUser = await prisma.user.findUnique({
+        where: {
+          user_id: assigned_to,
+        },
+      });
+
+      if (!assignedUser) {
+        return res.status(404).json({
+          message: "Assigned user not found",
+        });
+      }
+
+      if (assignedUser.status !== "active") {
+        return res.status(400).json({
+          message: "Assigned user must be active",
+        });
+      }
+
+      data.assigned_to = assigned_to;
+    }
+
+    if (deal_id !== undefined) {
+      if (deal_id === null || deal_id === "") {
+        data.deal_id = null;
+      } else {
+        if (!isValidUUID(deal_id)) {
+          return res.status(400).json({
+            message: "Invalid deal_id",
+          });
+        }
+
+        const deal = await prisma.deal.findUnique({
+          where: {
+            id: deal_id,
+          },
+        });
+
+        if (!deal) {
+          return res.status(404).json({
+            message: "Deal not found",
+          });
+        }
+
+        if (deal.customer_id !== finalCustomerId) {
+          return res.status(400).json({
+            message: "Deal does not belong to the selected customer",
+          });
+        }
+
+        data.deal_id = deal_id;
+      }
+    }
+
+    if (title !== undefined) {
+      const cleanTitle = cleanString(title);
+
+      if (!cleanTitle) {
+        return res.status(400).json({
+          message: "Task title cannot be empty",
+        });
+      }
+
+      if (cleanTitle.length > 255) {
+        return res.status(400).json({
+          message: "Task title cannot exceed 255 characters",
+        });
+      }
+
+      data.title = cleanTitle;
+    }
+
+    if (description !== undefined) {
+      const cleanDescription = cleanString(description);
+
+      if (cleanDescription && cleanDescription.length > 2000) {
+        return res.status(400).json({
+          message: "Description cannot exceed 2000 characters",
+        });
+      }
+
+      data.description = cleanDescription;
+    }
+
+    if (status !== undefined) {
+      const cleanStatus = cleanString(status);
+
+      if (!TASK_STATUSES.includes(cleanStatus)) {
+        return res.status(400).json({
+          message: "Invalid task status",
+          allowed_statuses: TASK_STATUSES,
+        });
+      }
+
+      data.status = cleanStatus;
+    }
+
+    if (priority !== undefined) {
+      const cleanPriority = cleanString(priority);
+
+      if (!TASK_PRIORITIES.includes(cleanPriority)) {
+        return res.status(400).json({
+          message: "Invalid task priority",
+          allowed_priorities: TASK_PRIORITIES,
+        });
+      }
+
+      data.priority = cleanPriority;
+    }
+
+    if (due_date !== undefined) {
+      if (due_date === null || due_date === "") {
+        data.due_date = null;
+      } else {
+        if (!isValidDate(due_date)) {
+          return res.status(400).json({
+            message: "Invalid due_date",
+          });
+        }
+
+        data.due_date = new Date(due_date);
+      }
+    }
+
+    if (comment !== undefined) {
+      const cleanComment = cleanString(comment);
+
+      if (cleanComment && cleanComment.length > 1000) {
+        return res.status(400).json({
+          message: "Comment cannot exceed 1000 characters",
+        });
+      }
+
+      data.comment = cleanComment;
+    }
+
+    const task = await prisma.task.update({
+      where: {
+        id,
+      },
+      data,
+      include: taskInclude,
+    });
+
+    await createActivity({
+      entity_type: "task",
+      entity_id: task.id,
+      action: "task_updated",
+      description: `Task updated: ${task.title}`,
+      customer_id: task.customer_id,
+      deal_id: task.deal_id,
+      task_id: task.id,
+      created_by: loggedInUserId,
+    });
+
+    return res.status(200).json({
+      message: "Task updated successfully",
+      task,
+    });
+  } catch (error) {
+    console.error("Update task error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+const updateTaskStatus = async (req, res) => {
+  try {
+    const loggedInUserId = getLoggedInUserId(req);
+    const { id } = req.params;
+    const { status, comment } = req.body;
+
+    if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
+      return res.status(401).json({
+        message: "Unauthorized. Valid logged-in user is required.",
+      });
+    }
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({
+        message: "Invalid task id",
+      });
+    }
+
+    const cleanStatus = cleanString(status);
+
+    if (!cleanStatus) {
+      return res.status(400).json({
+        message: "Status is required",
+      });
+    }
+
+    if (!TASK_STATUSES.includes(cleanStatus)) {
+      return res.status(400).json({
+        message: "Invalid task status",
+        allowed_statuses: TASK_STATUSES,
+      });
+    }
+
+    const cleanComment = cleanString(comment);
+
+    if (cleanComment && cleanComment.length > 1000) {
+      return res.status(400).json({
+        message: "Comment cannot exceed 1000 characters",
+      });
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    const task = await prisma.task.update({
+      where: {
+        id,
+      },
+      data: {
+        status: cleanStatus,
+        comment: cleanComment ?? existingTask.comment,
+        updated_by: loggedInUserId,
+      },
+      include: taskInclude,
+    });
+
+    await createActivity({
+      entity_type: "task",
+      entity_id: task.id,
+      action: "task_status_updated",
+      description: `Task status changed from ${existingTask.status} to ${task.status}.`,
+      customer_id: task.customer_id,
+      deal_id: task.deal_id,
+      task_id: task.id,
+      created_by: loggedInUserId,
+    });
+
+    return res.status(200).json({
+      message: "Task status updated successfully",
+      task,
+    });
+  } catch (error) {
+    console.error("Update task status error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+const deleteTask = async (req, res) => {
+  try {
+    const loggedInUserId = getLoggedInUserId(req);
+    const { id } = req.params;
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({
+        message: "Invalid task id",
+      });
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    await createActivity({
+      entity_type: "task",
+      entity_id: existingTask.id,
+      action: "task_deleted",
+      description: `Task deleted: ${existingTask.title}`,
+      customer_id: existingTask.customer_id,
+      deal_id: existingTask.deal_id,
+      task_id: existingTask.id,
+      created_by:
+        loggedInUserId && isValidUUID(loggedInUserId) ? loggedInUserId : null,
+    });
+
+    await prisma.task.delete({
+      where: {
+        id,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Task deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete task error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+module.exports = {
+  createTask,
+  getTasks,
+  getTaskById,
+  updateTask,
+  updateTaskStatus,
+  deleteTask,
+};

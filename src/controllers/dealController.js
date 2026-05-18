@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { createActivity } = require("../utils/activityLogger");
 
 const DEAL_STATUSES = [
   "new",
@@ -136,6 +137,16 @@ const createDeal = async (req, res) => {
         updated_by: loggedInUserId,
       },
       include: dealInclude,
+    });
+
+    await createActivity({
+      entity_type: "deal",
+      entity_id: deal.id,
+      action: "deal_created",
+      description: `Deal created with status ${deal.status}.`,
+      customer_id: deal.customer_id,
+      deal_id: deal.id,
+      created_by: loggedInUserId,
     });
 
     return res.status(201).json({
@@ -395,6 +406,16 @@ const updateDeal = async (req, res) => {
       include: dealInclude,
     });
 
+    await createActivity({
+      entity_type: "deal",
+      entity_id: deal.id,
+      action: "deal_updated",
+      description: `Deal updated. Current status is ${deal.status}.`,
+      customer_id: deal.customer_id,
+      deal_id: deal.id,
+      created_by: loggedInUserId,
+    });
+
     return res.status(200).json({
       message: "Deal updated successfully",
       deal,
@@ -473,6 +494,16 @@ const updateDealStatus = async (req, res) => {
       include: dealInclude,
     });
 
+    await createActivity({
+      entity_type: "deal",
+      entity_id: deal.id,
+      action: "deal_status_updated",
+      description: `Deal status changed from ${existingDeal.status} to ${deal.status}.`,
+      customer_id: deal.customer_id,
+      deal_id: deal.id,
+      created_by: loggedInUserId,
+    });
+
     return res.status(200).json({
       message: "Deal status updated successfully",
       deal,
@@ -488,6 +519,7 @@ const updateDealStatus = async (req, res) => {
 
 const deleteDeal = async (req, res) => {
   try {
+    const loggedInUserId = getLoggedInUserId(req);
     const { id } = req.params;
 
     if (!isValidUUID(id)) {
@@ -507,6 +539,17 @@ const deleteDeal = async (req, res) => {
         message: "Deal not found",
       });
     }
+
+    await createActivity({
+      entity_type: "deal",
+      entity_id: existingDeal.id,
+      action: "deal_deleted",
+      description: `Deal deleted. Previous status was ${existingDeal.status}.`,
+      customer_id: existingDeal.customer_id,
+      deal_id: existingDeal.id,
+      created_by:
+        loggedInUserId && isValidUUID(loggedInUserId) ? loggedInUserId : null,
+    });
 
     await prisma.deal.delete({
       where: {

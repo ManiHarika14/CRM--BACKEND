@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { createActivity } = require("../utils/activityLogger");
 
 const CUSTOMER_TYPES = ["Customer", "Vendor", "BConsultant", "AlliedSP"];
 
@@ -169,7 +170,7 @@ const validateCustomerPayload = (body, mode = "create") => {
 const buildCustomerData = (body, loggedInUserId, isCreate = false) => {
   const data = {
     customer_type: cleanString(body.customer_type),
-    status: cleanString(body.status)|| undefined,
+    status: cleanString(body.status) || undefined,
     name: cleanString(body.name),
     email: body.email ? cleanString(body.email).toLowerCase() : null,
     phone: cleanString(body.phone),
@@ -251,6 +252,18 @@ const createCustomer = async (req, res) => {
       include: customerInclude,
     });
 
+    await createActivity({
+      entity_type: "customer",
+      entity_id: customer.id,
+      action: "customer_created",
+      description: `Customer created: ${
+        customer.name || customer.company_name || customer.email || customer.id
+      }`,
+      customer_id: customer.id,
+      lead_id: customer.lead_id,
+      created_by: loggedInUserId,
+    });
+
     return res.status(201).json({
       message: "Customer created successfully",
       customer,
@@ -293,11 +306,11 @@ const getCustomers = async (req, res) => {
     }
 
     if (status && !CUSTOMER_STATUSES.includes(status)) {
-        return res.status(400).json({
-          message: "Invalid status",
-          allowed_statuses: CUSTOMER_STATUSES,
-        });
-      }
+      return res.status(400).json({
+        message: "Invalid status",
+        allowed_statuses: CUSTOMER_STATUSES,
+      });
+    }
 
     const skip = (pageNumber - 1) * limitNumber;
 
@@ -308,12 +321,12 @@ const getCustomers = async (req, res) => {
     }
 
     if (status) {
-        where.status = status;
-      } else {
-        where.status = {
-          not: "archived",
-        };
-      }
+      where.status = status;
+    } else {
+      where.status = {
+        not: "archived",
+      };
+    }
 
     if (search && search.trim()) {
       const cleanSearch = search.trim();
@@ -481,6 +494,18 @@ const updateCustomer = async (req, res) => {
       include: customerInclude,
     });
 
+    await createActivity({
+      entity_type: "customer",
+      entity_id: customer.id,
+      action: "customer_updated",
+      description: `Customer updated: ${
+        customer.name || customer.company_name || customer.email || customer.id
+      }`,
+      customer_id: customer.id,
+      lead_id: customer.lead_id,
+      created_by: loggedInUserId,
+    });
+
     return res.status(200).json({
       message: "Customer updated successfully",
       customer,
@@ -501,7 +526,7 @@ const convertLeadToCustomer = async (req, res) => {
     const loggedInUserId = getLoggedInUserId(req);
     const { leadId } = req.params;
     const { comments } = req.body;
-    
+
     if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
       return res.status(401).json({
         message: "Unauthorized. Valid logged-in user is required.",
@@ -683,6 +708,21 @@ const convertLeadToCustomer = async (req, res) => {
       };
     });
 
+    await createActivity({
+      entity_type: "customer",
+      entity_id: result.customer.id,
+      action: "lead_converted_to_customer",
+      description: `Lead converted to customer: ${
+        result.customer.name ||
+        result.customer.company_name ||
+        result.customer.email ||
+        result.customer.id
+      }`,
+      lead_id: result.updatedLead.id,
+      customer_id: result.customer.id,
+      created_by: loggedInUserId,
+    });
+
     return res.status(201).json({
       message: "Lead converted to customer successfully",
       customer: result.customer,
@@ -701,144 +741,166 @@ const convertLeadToCustomer = async (req, res) => {
 
 // UPDATE CUSTOMER STATUS
 const updateCustomerStatus = async (req, res) => {
-    try {
-      const loggedInUserId = getLoggedInUserId(req);
-      const { id } = req.params;
-      const { status, comments } = req.body;
-  
-      if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
-        return res.status(401).json({
-          message: "Unauthorized. Valid logged-in user is required.",
-        });
-      }
-  
-      if (!isValidUUID(id)) {
-        return res.status(400).json({
-          message: "Invalid customer id",
-        });
-      }
-  
-      if (!status || !CUSTOMER_STATUSES.includes(status)) {
-        return res.status(400).json({
-          message: "Invalid status",
-          allowed_statuses: CUSTOMER_STATUSES,
-        });
-      }
-  
-      if (comments && comments.length > 1000) {
-        return res.status(400).json({
-          message: "Comments cannot exceed 1000 characters",
-        });
-      }
-  
-      const existingCustomer = await prisma.customer.findUnique({
-        where: { id },
-      });
-  
-      if (!existingCustomer) {
-        return res.status(404).json({
-          message: "Customer not found",
-        });
-      }
-  
-      const customer = await prisma.customer.update({
-        where: { id },
-        data: {
-          status,
-          comments: cleanString(comments) || existingCustomer.comments,
-          updated_by: loggedInUserId,
-        },
-        include: customerInclude,
-      });
-  
-      return res.status(200).json({
-        message: "Customer status updated successfully",
-        customer,
-      });
-    } catch (error) {
-      console.error("Update customer status error:", error);
-  
-      return res.status(500).json({
-        message: "Failed to update customer status",
-        error: error.message,
+  try {
+    const loggedInUserId = getLoggedInUserId(req);
+    const { id } = req.params;
+    const { status, comments } = req.body;
+
+    if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
+      return res.status(401).json({
+        message: "Unauthorized. Valid logged-in user is required.",
       });
     }
-  };
-  
-  // ARCHIVE CUSTOMER INSTEAD OF HARD DELETE
-  const archiveCustomer = async (req, res) => {
-    try {
-      const loggedInUserId = getLoggedInUserId(req);
-      const { id } = req.params;
-      const { comments } = req.body;
-  
-      if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
-        return res.status(401).json({
-          message: "Unauthorized. Valid logged-in user is required.",
-        });
-      }
-  
-      if (!isValidUUID(id)) {
-        return res.status(400).json({
-          message: "Invalid customer id",
-        });
-      }
-  
-      if (comments && comments.length > 1000) {
-        return res.status(400).json({
-          message: "Comments cannot exceed 1000 characters",
-        });
-      }
-  
-      const existingCustomer = await prisma.customer.findUnique({
-        where: { id },
-      });
-  
-      if (!existingCustomer) {
-        return res.status(404).json({
-          message: "Customer not found",
-        });
-      }
-  
-      if (existingCustomer.status === "archived") {
-        return res.status(400).json({
-          message: "Customer is already archived",
-        });
-      }
-  
-      const customer = await prisma.customer.update({
-        where: { id },
-        data: {
-          status: "archived",
-          comments:
-            cleanString(comments) ||
-            existingCustomer.comments ||
-            "Customer archived",
-          updated_by: loggedInUserId,
-        },
-        include: customerInclude,
-      });
-  
-      return res.status(200).json({
-        message: "Customer archived successfully",
-        customer,
-      });
-    } catch (error) {
-      console.error("Archive customer error:", error);
-  
-      return res.status(500).json({
-        message: "Failed to archive customer",
-        error: error.message,
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({
+        message: "Invalid customer id",
       });
     }
-  };
+
+    if (!status || !CUSTOMER_STATUSES.includes(status)) {
+      return res.status(400).json({
+        message: "Invalid status",
+        allowed_statuses: CUSTOMER_STATUSES,
+      });
+    }
+
+    if (comments && comments.length > 1000) {
+      return res.status(400).json({
+        message: "Comments cannot exceed 1000 characters",
+      });
+    }
+
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!existingCustomer) {
+      return res.status(404).json({
+        message: "Customer not found",
+      });
+    }
+
+    const customer = await prisma.customer.update({
+      where: { id },
+      data: {
+        status,
+        comments: cleanString(comments) || existingCustomer.comments,
+        updated_by: loggedInUserId,
+      },
+      include: customerInclude,
+    });
+
+    await createActivity({
+      entity_type: "customer",
+      entity_id: customer.id,
+      action: "customer_status_updated",
+      description: `Customer status changed from ${existingCustomer.status} to ${customer.status}.`,
+      customer_id: customer.id,
+      lead_id: customer.lead_id,
+      created_by: loggedInUserId,
+    });
+
+    return res.status(200).json({
+      message: "Customer status updated successfully",
+      customer,
+    });
+  } catch (error) {
+    console.error("Update customer status error:", error);
+
+    return res.status(500).json({
+      message: "Failed to update customer status",
+      error: error.message,
+    });
+  }
+};
+
+// ARCHIVE CUSTOMER INSTEAD OF HARD DELETE
+const archiveCustomer = async (req, res) => {
+  try {
+    const loggedInUserId = getLoggedInUserId(req);
+    const { id } = req.params;
+    const { comments } = req.body;
+
+    if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
+      return res.status(401).json({
+        message: "Unauthorized. Valid logged-in user is required.",
+      });
+    }
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({
+        message: "Invalid customer id",
+      });
+    }
+
+    if (comments && comments.length > 1000) {
+      return res.status(400).json({
+        message: "Comments cannot exceed 1000 characters",
+      });
+    }
+
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!existingCustomer) {
+      return res.status(404).json({
+        message: "Customer not found",
+      });
+    }
+
+    if (existingCustomer.status === "archived") {
+      return res.status(400).json({
+        message: "Customer is already archived",
+      });
+    }
+
+    const customer = await prisma.customer.update({
+      where: { id },
+      data: {
+        status: "archived",
+        comments:
+          cleanString(comments) ||
+          existingCustomer.comments ||
+          "Customer archived",
+        updated_by: loggedInUserId,
+      },
+      include: customerInclude,
+    });
+
+    await createActivity({
+      entity_type: "customer",
+      entity_id: customer.id,
+      action: "customer_archived",
+      description: `Customer archived: ${
+        customer.name || customer.company_name || customer.email || customer.id
+      }`,
+      customer_id: customer.id,
+      lead_id: customer.lead_id,
+      created_by: loggedInUserId,
+    });
+
+    return res.status(200).json({
+      message: "Customer archived successfully",
+      customer,
+    });
+  } catch (error) {
+    console.error("Archive customer error:", error);
+
+    return res.status(500).json({
+      message: "Failed to archive customer",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
-    createCustomer,
-    getCustomers,
-    getCustomerById,
-    updateCustomer,
-    convertLeadToCustomer,
-    updateCustomerStatus,
-    archiveCustomer,
+  createCustomer,
+  getCustomers,
+  getCustomerById,
+  updateCustomer,
+  convertLeadToCustomer,
+  updateCustomerStatus,
+  archiveCustomer,
 };

@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { createActivity } = require("../utils/activityLogger");
 
 const allowedLeadTypes = ["Customer", "Vendor", "AlliedSP", "BConsultant"];
 
@@ -164,6 +165,17 @@ const createLead = async (req, res) => {
         updated_by: req.user.user_id,
       },
       include: leadInclude,
+    });
+
+    await createActivity({
+      entity_type: "lead",
+      entity_id: lead.id,
+      action: "lead_created",
+      description: `Lead created: ${
+        lead.name || lead.company_name || lead.email || lead.id
+      }`,
+      lead_id: lead.id,
+      created_by: req.user?.user_id || null,
     });
 
     return res.status(201).json({
@@ -382,6 +394,20 @@ const updateLead = async (req, res) => {
       include: leadInclude,
     });
 
+    await createActivity({
+      entity_type: "lead",
+      entity_id: updatedLead.id,
+      action: "lead_updated",
+      description: `Lead updated: ${
+        updatedLead.name ||
+        updatedLead.company_name ||
+        updatedLead.email ||
+        updatedLead.id
+      }`,
+      lead_id: updatedLead.id,
+      created_by: req.user?.user_id || null,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Lead updated successfully",
@@ -449,6 +475,17 @@ const assignLead = async (req, res) => {
       include: leadInclude,
     });
 
+    await createActivity({
+      entity_type: "lead",
+      entity_id: updatedLead.id,
+      action: "lead_assigned",
+      description: `Lead assigned from ${lead.assigned_to || "unassigned"} to ${
+        updatedLead.assigned_to
+      }.`,
+      lead_id: updatedLead.id,
+      created_by: req.user?.user_id || null,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Lead assigned successfully",
@@ -513,6 +550,15 @@ const updateLeadStage = async (req, res) => {
     const updatedLead = await prisma.lead.findUnique({
       where: { id },
       include: leadInclude,
+    });
+
+    await createActivity({
+      entity_type: "lead",
+      entity_id: updatedLead.id,
+      action: "lead_stage_updated",
+      description: `Lead stage changed from ${lead.crm_stage} to ${updatedLead.crm_stage}.`,
+      lead_id: updatedLead.id,
+      created_by: req.user?.user_id || null,
     });
 
     return res.status(200).json({
@@ -584,6 +630,15 @@ const updateVerificationStatus = async (req, res) => {
       include: leadInclude,
     });
 
+    await createActivity({
+      entity_type: "lead",
+      entity_id: updatedLead.id,
+      action: "lead_verification_updated",
+      description: `Lead verification changed from ${lead.verification_status} to ${updatedLead.verification_status}.`,
+      lead_id: updatedLead.id,
+      created_by: req.user?.user_id || null,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Lead verification status updated successfully",
@@ -612,6 +667,17 @@ const deleteLead = async (req, res) => {
         message: "Lead not found",
       });
     }
+
+    await createActivity({
+      entity_type: "lead",
+      entity_id: lead.id,
+      action: "lead_deleted",
+      description: `Lead deleted: ${
+        lead.name || lead.company_name || lead.email || lead.id
+      }`,
+      lead_id: lead.id,
+      created_by: req.user?.user_id || null,
+    });
 
     await prisma.lead.delete({
       where: { id },

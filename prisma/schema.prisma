@@ -26,6 +26,17 @@ model User {
   createdDeals Deal[] @relation("DealCreatedBy")
   updatedDeals Deal[] @relation("DealUpdatedBy")
 
+  assignedTasks Task[] @relation("TaskAssignedUser")
+  createdTasks  Task[] @relation("TaskCreatedBy")
+  updatedTasks  Task[] @relation("TaskUpdatedBy")
+
+  createdNotes Note[] @relation("NoteCreatedBy")
+  updatedNotes Note[] @relation("NoteUpdatedBy")
+
+  createdActivities Activity[] @relation("ActivityCreatedBy")
+
+  authLogs AuthLog[]
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -70,6 +81,8 @@ model Lead {
 
   customer Customer?
 
+  activities Activity[]
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -101,6 +114,10 @@ model Customer {
   customer_type String?
 
   deals Deal[]
+  tasks Task[]
+  notes Note[]
+
+  activities Activity[]
 
   status String @default("active")
   // active, inactive, blacklisted, archived
@@ -146,8 +163,146 @@ model Deal {
   updated_by String? @db.Uuid
   updatedBy  User?   @relation("DealUpdatedBy", fields: [updated_by], references: [user_id])
 
+  tasks Task[]
+  notes Note[]
+
+  activities Activity[]
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@map("deals")
+}
+
+model Task {
+  id String @id @default(uuid()) @db.Uuid
+
+  customer_id String   @db.Uuid
+  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  deal_id String? @db.Uuid
+  deal    Deal?   @relation(fields: [deal_id], references: [id], onDelete: SetNull)
+
+  assigned_to  String @db.Uuid
+  assignedUser User   @relation("TaskAssignedUser", fields: [assigned_to], references: [user_id])
+
+  title       String
+  description String?
+
+  status String @default("pending")
+  // pending, in_progress, completed, cancelled
+
+  priority String @default("medium")
+  // low, medium, high, urgent
+
+  due_date DateTime?
+
+  comment String?
+
+  created_by String? @db.Uuid
+  createdBy  User?   @relation("TaskCreatedBy", fields: [created_by], references: [user_id])
+
+  updated_by String? @db.Uuid
+  updatedBy  User?   @relation("TaskUpdatedBy", fields: [updated_by], references: [user_id])
+
+  notes Note[]
+
+  activities Activity[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("tasks")
+}
+
+model Note {
+  id String @id @default(uuid()) @db.Uuid
+
+  customer_id String   @db.Uuid
+  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  deal_id String? @db.Uuid
+  deal    Deal?   @relation(fields: [deal_id], references: [id], onDelete: SetNull)
+
+  task_id String? @db.Uuid
+  task    Task?   @relation(fields: [task_id], references: [id], onDelete: SetNull)
+
+  note String
+
+  created_by String? @db.Uuid
+  createdBy  User?   @relation("NoteCreatedBy", fields: [created_by], references: [user_id])
+
+  updated_by String? @db.Uuid
+  updatedBy  User?   @relation("NoteUpdatedBy", fields: [updated_by], references: [user_id])
+
+  activities Activity[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("notes")
+}
+
+model Activity {
+  id String @id @default(uuid()) @db.Uuid
+
+  entity_type String
+  // lead, customer, deal, task, note
+
+  entity_id String @db.Uuid
+
+  action String
+  // lead_created, lead_updated, lead_assigned, lead_verified,
+  // customer_created, customer_updated, customer_archived,
+  // deal_created, deal_updated, deal_status_updated,
+  // task_created, task_updated, task_status_updated,
+  // note_created, note_updated, note_deleted
+
+  description String?
+
+  lead_id String? @db.Uuid
+  lead    Lead?   @relation(fields: [lead_id], references: [id], onDelete: SetNull)
+
+  customer_id String?   @db.Uuid
+  customer    Customer? @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+
+  deal_id String? @db.Uuid
+  deal    Deal?   @relation(fields: [deal_id], references: [id], onDelete: SetNull)
+
+  task_id String? @db.Uuid
+  task    Task?   @relation(fields: [task_id], references: [id], onDelete: SetNull)
+
+  note_id String? @db.Uuid
+  note    Note?   @relation(fields: [note_id], references: [id], onDelete: SetNull)
+
+  created_by String? @db.Uuid
+  createdBy  User?   @relation("ActivityCreatedBy", fields: [created_by], references: [user_id])
+
+  created_at DateTime @default(now())
+
+  @@map("activities")
+}
+
+model AuthLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  user_id String? @db.Uuid
+  user    User?   @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
+
+  email String?
+
+  action String
+  // user_registered, login_success, login_failed, account_inactive_login_attempt
+
+  status String
+  // success, failed, blocked
+
+  description String?
+
+  ip_address String?
+  user_agent String?
+
+  created_at DateTime @default(now())
+
+  @@map("auth_logs")
 }
