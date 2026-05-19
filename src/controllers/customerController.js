@@ -12,9 +12,12 @@ const BLOCKED_LEAD_STAGES = ["lost"];
 const isValidUUID = (value) => {
   if (!value) return false;
 
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
-    value
-  );
+  const uuid = String(value).trim();
+
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  return uuidRegex.test(uuid);
 };
 
 const isValidEmail = (email) => {
@@ -49,7 +52,17 @@ const cleanString = (value) => {
 };
 
 const getLoggedInUserId = (req) => {
-  return req.user?.user_id || req.user?.id || null;
+  const userId =
+    req.user?.user_id ||
+    req.user?.id ||
+    req.user?.user?.user_id ||
+    req.user?.user?.id ||
+    req.userId ||
+    req.auth?.user_id ||
+    req.auth?.id ||
+    null;
+
+  return userId ? String(userId).trim() : null;
 };
 
 const customerInclude = {
@@ -571,7 +584,8 @@ const convertLeadToCustomer = async (req, res) => {
 
     if (lead.crm_stage !== LEAD_ALLOWED_CONVERSION_STAGE) {
       return res.status(400).json({
-        message: "Lead cannot be converted. Only qualified leads can be converted, and lost leads are not eligible.",
+        message:
+          "Lead cannot be converted. Only qualified leads can be converted, and lost leads are not eligible.",
         current_crm_stage: lead.crm_stage,
       });
     }

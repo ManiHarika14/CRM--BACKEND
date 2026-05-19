@@ -200,6 +200,7 @@ const getLeads = async (req, res) => {
       verification_status,
       crm_stage,
       assigned_to,
+      include_converted,
       page = 1,
       limit = 10,
     } = req.query;
@@ -210,7 +211,13 @@ const getLeads = async (req, res) => {
 
     if (lead_type) where.lead_type = lead_type;
     if (verification_status) where.verification_status = verification_status;
-    if (crm_stage) where.crm_stage = crm_stage;
+    if (crm_stage) {
+      where.crm_stage = crm_stage;
+    } else if (include_converted !== "true") {
+      where.crm_stage = {
+        not: "converted",
+      };
+    }
     if (assigned_to) where.assigned_to = assigned_to;
 
     if (search) {
@@ -242,7 +249,8 @@ const getLeads = async (req, res) => {
       total,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
-      data: leads,
+include_converted: include_converted === "true",
+data: leads,
     });
   } catch (error) {
     console.error("GET LEADS ERROR:", error);
