@@ -1,20 +1,18 @@
 const prisma = require("../utils/prisma");
-const { createActivity } = require("../utils/activityLogger");
 
 const CUSTOMER_TYPES = ["Customer", "Vendor", "BConsultant", "AlliedSP"];
-
 const CUSTOMER_STATUSES = ["active", "inactive", "blacklisted", "archived"];
 
 const LEAD_ALLOWED_VERIFICATION_STATUS = "verified";
+const LEAD_ALLOWED_CONVERSION_STAGE = "qualified";
 
 const BLOCKED_LEAD_STATUSES = ["not_interested", "churned"];
-
 const BLOCKED_LEAD_STAGES = ["lost"];
 
 const isValidUUID = (value) => {
   if (!value) return false;
 
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
     value
   );
 };
@@ -252,18 +250,6 @@ const createCustomer = async (req, res) => {
       include: customerInclude,
     });
 
-    await createActivity({
-      entity_type: "customer",
-      entity_id: customer.id,
-      action: "customer_created",
-      description: `Customer created: ${
-        customer.name || customer.company_name || customer.email || customer.id
-      }`,
-      customer_id: customer.id,
-      lead_id: customer.lead_id,
-      created_by: loggedInUserId,
-    });
-
     return res.status(201).json({
       message: "Customer created successfully",
       customer,
@@ -494,18 +480,6 @@ const updateCustomer = async (req, res) => {
       include: customerInclude,
     });
 
-    await createActivity({
-      entity_type: "customer",
-      entity_id: customer.id,
-      action: "customer_updated",
-      description: `Customer updated: ${
-        customer.name || customer.company_name || customer.email || customer.id
-      }`,
-      customer_id: customer.id,
-      lead_id: customer.lead_id,
-      created_by: loggedInUserId,
-    });
-
     return res.status(200).json({
       message: "Customer updated successfully",
       customer,
@@ -582,7 +556,8 @@ const convertLeadToCustomer = async (req, res) => {
 
     if (BLOCKED_LEAD_STATUSES.includes(lead.verification_status)) {
       return res.status(400).json({
-        message: "This lead cannot be converted because it is not interested or churned",
+        message:
+          "This lead cannot be converted because it is not interested or churned",
         current_verification_status: lead.verification_status,
       });
     }
@@ -591,6 +566,13 @@ const convertLeadToCustomer = async (req, res) => {
       return res.status(400).json({
         message: "Only verified leads can be converted to customer",
         current_verification_status: lead.verification_status,
+      });
+    }
+
+    if (lead.crm_stage !== LEAD_ALLOWED_CONVERSION_STAGE) {
+      return res.status(400).json({
+        message: "Lead cannot be converted. Only qualified leads can be converted, and lost leads are not eligible.",
+        current_crm_stage: lead.crm_stage,
       });
     }
 
@@ -708,21 +690,6 @@ const convertLeadToCustomer = async (req, res) => {
       };
     });
 
-    await createActivity({
-      entity_type: "customer",
-      entity_id: result.customer.id,
-      action: "lead_converted_to_customer",
-      description: `Lead converted to customer: ${
-        result.customer.name ||
-        result.customer.company_name ||
-        result.customer.email ||
-        result.customer.id
-      }`,
-      lead_id: result.updatedLead.id,
-      customer_id: result.customer.id,
-      created_by: loggedInUserId,
-    });
-
     return res.status(201).json({
       message: "Lead converted to customer successfully",
       customer: result.customer,
@@ -791,16 +758,6 @@ const updateCustomerStatus = async (req, res) => {
       include: customerInclude,
     });
 
-    await createActivity({
-      entity_type: "customer",
-      entity_id: customer.id,
-      action: "customer_status_updated",
-      description: `Customer status changed from ${existingCustomer.status} to ${customer.status}.`,
-      customer_id: customer.id,
-      lead_id: customer.lead_id,
-      created_by: loggedInUserId,
-    });
-
     return res.status(200).json({
       message: "Customer status updated successfully",
       customer,
@@ -867,18 +824,6 @@ const archiveCustomer = async (req, res) => {
         updated_by: loggedInUserId,
       },
       include: customerInclude,
-    });
-
-    await createActivity({
-      entity_type: "customer",
-      entity_id: customer.id,
-      action: "customer_archived",
-      description: `Customer archived: ${
-        customer.name || customer.company_name || customer.email || customer.id
-      }`,
-      customer_id: customer.id,
-      lead_id: customer.lead_id,
-      created_by: loggedInUserId,
     });
 
     return res.status(200).json({
