@@ -1,7 +1,9 @@
 const express = require("express");
+const multer = require("multer");
 
 const {
   createLead,
+  importLeads,
   getLeads,
   getLeadById,
   updateLead,
@@ -15,7 +17,75 @@ const { protect } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = [
+      "text/csv",
+      "application/csv",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ];
+
+    const allowedExtensions = [".csv", ".xls", ".xlsx"];
+
+    const fileName = file.originalname.toLowerCase();
+    const hasAllowedExtension = allowedExtensions.some((extension) =>
+      fileName.endsWith(extension)
+    );
+
+    if (allowedMimeTypes.includes(file.mimetype) || hasAllowedExtension) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only CSV, XLS, and XLSX files are allowed"));
+    }
+  },
+});
+
 router.use(protect);
+
+/**
+ * @swagger
+ * /api/leads/import:
+ *   post:
+ *     summary: Import leads from CSV, XLS, or XLSX file
+ *     tags: [Leads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *               - assigned_to
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: CSV, XLS, or XLSX file containing leads
+ *               assigned_to:
+ *                 type: string
+ *                 description: Active admin or super_admin user UUID
+ *                 example: "4698b086-50d8-48e7-bf32-b1347328e4d1"
+ *     responses:
+ *       200:
+ *         description: Lead import completed successfully
+ *       400:
+ *         description: Invalid file, invalid assigned user, or no valid leads found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error while importing leads
+ */
+router.post("/import", upload.single("file"), importLeads);
+
+router.post("/import", upload.single("file"), importLeads);
 
 /**
  * @swagger

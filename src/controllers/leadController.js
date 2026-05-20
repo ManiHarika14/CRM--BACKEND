@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const XLSX = require("xlsx");
 const { createActivity } = require("../utils/activityLogger");
 
 const allowedLeadTypes = ["Customer", "Vendor", "AlliedSP", "BConsultant"];
@@ -102,6 +103,216 @@ const createLeadComment = async ({ lead_id, updated_by, comment }) => {
   });
 };
 
+const normalizeHeader = (value) => {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+};
+
+const cleanImportValue = (value) => {
+  if (value === null || value === undefined) return null;
+
+  const cleaned = String(value).trim();
+
+  return cleaned.length ? cleaned : null;
+};
+
+const normalizeEmail = (value) => {
+  const email = cleanImportValue(value);
+
+  if (!email) return null;
+
+  return email.toLowerCase();
+};
+
+const isValidEmail = (value) => {
+  if (!value) return true;
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  return emailRegex.test(String(value).trim().toLowerCase());
+};
+
+const normalizeLeadType = (value) => {
+  const cleaned = cleanImportValue(value);
+
+  if (!cleaned) return "Customer";
+
+  const foundType = allowedLeadTypes.find(
+    (type) => type.toLowerCase() === cleaned.toLowerCase()
+  );
+
+  return foundType || "Customer";
+};
+
+const normalizeVerificationStatus = (value) => {
+  const cleaned = cleanImportValue(value);
+
+  if (!cleaned) return "new";
+
+  const normalized = cleaned.toLowerCase().replace(/\s+/g, "_");
+
+  return allowedVerificationStatuses.includes(normalized) ? normalized : "new";
+};
+
+const normalizeCrmStage = (value) => {
+  const cleaned = cleanImportValue(value);
+
+  if (!cleaned) return "new";
+
+  const normalized = cleaned.toLowerCase().replace(/\s+/g, "_");
+
+  return allowedCrmStages.includes(normalized) ? normalized : "new";
+};
+
+const parseImportDate = (value) => {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+};
+
+const pickImportValue = (row, possibleHeaders) => {
+  for (const header of possibleHeaders) {
+    const normalizedHeader = normalizeHeader(header);
+
+    if (row[normalizedHeader] !== undefined && row[normalizedHeader] !== null) {
+      return row[normalizedHeader];
+    }
+  }
+
+  return null;
+};
+
+const mapImportRow = (row) => {
+  return {
+    source: cleanImportValue(
+      pickImportValue(row, ["source", "lead source", "lead_source"])
+    ),
+    source_url: cleanImportValue(
+      pickImportValue(row, ["source_url", "source url", "url", "lead_url"])
+    ),
+    extraction_date: parseImportDate(
+      pickImportValue(row, [
+        "extraction_date",
+        "extraction date",
+        "date",
+        "created date",
+      ])
+    ),
+    lead_type: normalizeLeadType(
+      pickImportValue(row, ["lead_type", "lead type", "type"])
+    ),
+    name: cleanImportValue(
+      pickImportValue(row, [
+        "name",
+        "full name",
+        "full_name",
+        "lead name",
+        "lead_name",
+        "contact name",
+        "contact_name",
+      ])
+    ),
+    email: normalizeEmail(
+      pickImportValue(row, ["email", "email address", "email_address"])
+    ),
+    phone: cleanImportValue(
+      pickImportValue(row, [
+        "phone",
+        "phone number",
+        "phone_number",
+        "mobile",
+        "mobile number",
+        "mobile_number",
+        "contact",
+        "contact number",
+        "contact_number",
+      ])
+    ),
+    address: cleanImportValue(
+      pickImportValue(row, ["address", "location", "city"])
+    ),
+    company_name: cleanImportValue(
+      pickImportValue(row, [
+        "company",
+        "company name",
+        "company_name",
+        "organization",
+        "organisation",
+        "business name",
+        "business_name",
+      ])
+    ),
+    website: cleanImportValue(
+      pickImportValue(row, ["website", "web site", "web_site", "site"])
+    ),
+    verification_status: normalizeVerificationStatus(
+      pickImportValue(row, [
+        "verification_status",
+        "verification status",
+        "status",
+      ])
+    ),
+    confidence: pickImportValue(row, ["confidence", "score"])
+      ? Number(pickImportValue(row, ["confidence", "score"]))
+      : null,
+    crm_stage: normalizeCrmStage(
+      pickImportValue(row, ["crm_stage", "crm stage", "stage"])
+    ),
+  };
+};
+
+const getDuplicateKey = (lead) => {
+  if (lead.email) return `email:${lead.email}`;
+  if (lead.phone) return `phone:${lead.phone}`;
+  return null;
+};
+
+const chunkArray = (items, size = 1000) => {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+};
+
+const getRowsFromUploadedFile = (fileBuffer) => {
+  const workbook = XLSX.read(fileBuffer, {
+    type: "buffer",
+    cellDates: true,
+  });
+
+  const firstSheetName = workbook.SheetNames[0];
+
+  if (!firstSheetName) {
+    return [];
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+
+  const rawRows = XLSX.utils.sheet_to_json(worksheet, {
+    defval: "",
+  });
+
+  return rawRows.map((row) => {
+    const normalizedRow = {};
+
+    Object.entries(row).forEach(([key, value]) => {
+      normalizedRow[normalizeHeader(key)] = value;
+    });
+
+    return normalizedRow;
+  });
+};
+
 const createLead = async (req, res) => {
   try {
     const {
@@ -188,6 +399,259 @@ const createLead = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while creating lead",
+    });
+  }
+};
+
+const importLeads = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Lead import file is required",
+      });
+    }
+
+    const { assigned_to } = req.body;
+
+    const assignmentError = await validateAssignedUser(assigned_to);
+
+    if (assignmentError) {
+      return res.status(400).json({
+        success: false,
+        message: assignmentError,
+      });
+    }
+
+    const rows = getRowsFromUploadedFile(req.file.buffer);
+
+    if (!rows.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Uploaded file is empty or has no valid rows",
+      });
+    }
+
+    if (rows.length > 20000) {
+      return res.status(400).json({
+        success: false,
+        message: "Import limit exceeded. Maximum 20,000 leads are allowed per file.",
+        totalRows: rows.length,
+      });
+    }
+
+    const errors = [];
+    const validLeads = [];
+    const seenKeys = new Set();
+
+    rows.forEach((row, index) => {
+      const rowNumber = index + 2;
+      const mappedLead = mapImportRow(row);
+
+      if (!mappedLead.name && !mappedLead.company_name && !mappedLead.email) {
+        errors.push({
+          row: rowNumber,
+          reason: "At least one of name, company_name, or email is required",
+        });
+        return;
+      }
+
+      if (!mappedLead.email && !mappedLead.phone) {
+        errors.push({
+          row: rowNumber,
+          reason: "At least email or phone is required",
+        });
+        return;
+      }
+
+      if (mappedLead.email && !isValidEmail(mappedLead.email)) {
+        errors.push({
+          row: rowNumber,
+          reason: "Invalid email format",
+        });
+        return;
+      }
+
+      const duplicateKey = getDuplicateKey(mappedLead);
+
+      if (duplicateKey && seenKeys.has(duplicateKey)) {
+        errors.push({
+          row: rowNumber,
+          reason: "Duplicate lead inside uploaded file",
+        });
+        return;
+      }
+
+      if (duplicateKey) {
+        seenKeys.add(duplicateKey);
+      }
+
+      validLeads.push({
+        source: mappedLead.source || "import",
+        source_url: mappedLead.source_url,
+        extraction_date: mappedLead.extraction_date,
+        lead_type: mappedLead.lead_type,
+        name: mappedLead.name,
+        email: mappedLead.email,
+        phone: mappedLead.phone,
+        address: mappedLead.address,
+        company_name: mappedLead.company_name,
+        website: mappedLead.website,
+        verification_status: mappedLead.verification_status,
+        confidence: Number.isFinite(mappedLead.confidence)
+          ? mappedLead.confidence
+          : null,
+        crm_stage: mappedLead.crm_stage,
+        assigned_to,
+        created_by: req.user.user_id,
+        updated_by: req.user.user_id,
+      });
+    });
+
+    if (!validLeads.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid leads found for import",
+        totalRows: rows.length,
+        created: 0,
+        skipped: rows.length,
+        failed: errors.length,
+        errors: errors.slice(0, 200),
+      });
+    }
+
+    const emails = validLeads
+      .map((lead) => lead.email)
+      .filter(Boolean);
+
+    const phones = validLeads
+      .map((lead) => lead.phone)
+      .filter(Boolean);
+
+    const existingLeads = await prisma.lead.findMany({
+      where: {
+        OR: [
+          ...(emails.length
+            ? [
+                {
+                  email: {
+                    in: emails,
+                  },
+                },
+              ]
+            : []),
+          ...(phones.length
+            ? [
+                {
+                  phone: {
+                    in: phones,
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      select: {
+        email: true,
+        phone: true,
+      },
+    });
+
+    const existingEmailSet = new Set(
+      existingLeads.map((lead) => lead.email).filter(Boolean)
+    );
+
+    const existingPhoneSet = new Set(
+      existingLeads.map((lead) => lead.phone).filter(Boolean)
+    );
+
+    const leadsToCreate = [];
+
+    validLeads.forEach((lead, index) => {
+      const rowNumber = index + 2;
+
+      if (lead.email && existingEmailSet.has(lead.email)) {
+        errors.push({
+          row: rowNumber,
+          reason: "Email already exists in CRM",
+        });
+        return;
+      }
+
+      if (lead.phone && existingPhoneSet.has(lead.phone)) {
+        errors.push({
+          row: rowNumber,
+          reason: "Phone already exists in CRM",
+        });
+        return;
+      }
+
+      leadsToCreate.push(lead);
+    });
+
+    let created = 0;
+
+    const batches = chunkArray(leadsToCreate, 1000);
+
+    for (const batch of batches) {
+      const result = await prisma.lead.createMany({
+        data: batch,
+        skipDuplicates: true,
+      });
+
+      created += result.count || 0;
+    }
+
+    if (created > 0) {
+      try {
+        const latestImportedLead = await prisma.lead.findFirst({
+          where: {
+            created_by: req.user.user_id,
+            source: "import",
+          },
+          orderBy: {
+            created_at: "desc",
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (latestImportedLead?.id) {
+          await createActivity({
+            entity_type: "lead",
+            entity_id: latestImportedLead.id,
+            action: "leads_imported",
+            description: `Lead import completed. File: ${req.file.originalname}. Total rows: ${rows.length}. Created: ${created}. Failed/skipped: ${rows.length - created}.`,
+            lead_id: latestImportedLead.id,
+            created_by: req.user?.user_id || null,
+          });
+        }
+      } catch (activityError) {
+        console.error("LEAD IMPORT ACTIVITY LOG ERROR:", activityError);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Lead import completed",
+      fileName: req.file.originalname,
+      totalRows: rows.length,
+      created,
+      skipped: rows.length - created,
+      failed: errors.length,
+      errors: errors.slice(0, 200),
+      note:
+        errors.length > 200
+          ? "Only first 200 errors are returned to keep response readable"
+          : undefined,
+    });
+  } catch (error) {
+    console.error("IMPORT LEADS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error while importing leads",
     });
   }
 };
@@ -706,6 +1170,7 @@ const deleteLead = async (req, res) => {
 
 module.exports = {
   createLead,
+  importLeads,
   getLeads,
   getLeadById,
   updateLead,
