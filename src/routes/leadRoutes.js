@@ -85,8 +85,6 @@ router.use(protect);
  */
 router.post("/import", upload.single("file"), importLeads);
 
-router.post("/import", upload.single("file"), importLeads);
-
 /**
  * @swagger
  * tags:
