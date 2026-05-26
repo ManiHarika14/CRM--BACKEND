@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -417,4 +418,11 @@ model crm_users {
   crm_tasks_crm_tasks_assigned_toTocrm_users        crm_tasks[]         @relation("crm_tasks_assigned_toTocrm_users")
   crm_tasks_crm_tasks_created_byTocrm_users         crm_tasks[]         @relation("crm_tasks_created_byTocrm_users")
   crm_tasks_crm_tasks_updated_byTocrm_users         crm_tasks[]         @relation("crm_tasks_updated_byTocrm_users")
+}
+
+model user_wise_menu {
+  i_id      String    @id
+  userId    Int
+  menuId    Int
+  menu_data menu_data @relation(fields: [menuId], references: [id])
 }
