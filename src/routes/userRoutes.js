@@ -108,7 +108,7 @@ router.get("/", allowRoles("admin", "super_admin"), getUsers);
  *       500:
  *         description: Server error while creating user
  */
-router.post("/", allowRoles("admin", "super_admin"), createUser);
+router.post("/", allowRoles("super_admin"), createUser);
 
 /**
  * @swagger
@@ -157,7 +157,7 @@ router.post("/", allowRoles("admin", "super_admin"), createUser);
  *       500:
  *         description: Server error while updating user
  */
-router.patch("/:user_id", allowRoles("admin", "super_admin"), updateUser);
+router.patch("/:user_id", allowRoles("admin","super_admin"), updateUser);
 
 /**
  * @swagger
@@ -187,6 +187,7 @@ router.patch("/:user_id", allowRoles("admin", "super_admin"), updateUser);
  *       500:
  *         description: Server error while deactivating user
  */
-router.delete("/:user_id", allowRoles("admin", "super_admin"), deleteUser);
+router.delete("/:user_id", allowRoles( "super_admin"), deleteUser);
 
 module.exports = router;
+router.use(protect);

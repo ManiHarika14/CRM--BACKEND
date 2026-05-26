@@ -1,308 +1,237 @@
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  user_id       String  @id @default(uuid()) @db.Uuid
-  name          String
-  email         String  @unique
-  password_hash String
-  role          String?
-  status        String  @default("active")
+  user_id           String        @id @map("id") @default(uuid()) @db.Uuid
+  name              String
+  email             String        @unique
+  password_hash     String
+  role              String?
+  status            String        @default("active")
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+  createdActivities Activity[]    @relation("ActivityCreatedBy")
+  authLogs          AuthLog[]
+  createdCustomers  Customer[]    @relation("CustomerCreatedBy")
+  updatedCustomers  Customer[]    @relation("CustomerUpdatedBy")
+  createdDeals      Deal[]        @relation("DealCreatedBy")
+  updatedDeals      Deal[]        @relation("DealUpdatedBy")
+  leadComments      LeadComment[]
+  assignedLeads     Lead[]        @relation("LeadAssignedUser")
+  createdLeads      Lead[]        @relation("LeadCreatedBy")
+  updatedLeads      Lead[]        @relation("LeadUpdatedBy")
+  createdNotes      Note[]        @relation("NoteCreatedBy")
+  updatedNotes      Note[]        @relation("NoteUpdatedBy")
+  assignedTasks     Task[]        @relation("TaskAssignedUser")
+  createdTasks      Task[]        @relation("TaskCreatedBy")
+  updatedTasks      Task[]        @relation("TaskUpdatedBy")
 
-  assignedLeads Lead[] @relation("LeadAssignedUser")
-  createdLeads  Lead[] @relation("LeadCreatedBy")
-  updatedLeads  Lead[] @relation("LeadUpdatedBy")
-
-  leadComments LeadComment[]
-
-  createdCustomers Customer[] @relation("CustomerCreatedBy")
-  updatedCustomers Customer[] @relation("CustomerUpdatedBy")
-
-  createdDeals Deal[] @relation("DealCreatedBy")
-  updatedDeals Deal[] @relation("DealUpdatedBy")
-
-  assignedTasks Task[] @relation("TaskAssignedUser")
-  createdTasks  Task[] @relation("TaskCreatedBy")
-  updatedTasks  Task[] @relation("TaskUpdatedBy")
-
-  createdNotes Note[] @relation("NoteCreatedBy")
-  updatedNotes Note[] @relation("NoteUpdatedBy")
-
-  createdActivities Activity[] @relation("ActivityCreatedBy")
-
-  authLogs AuthLog[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("users")
+  @@map("crm1_users")
 }
 
 model Lead {
-  id String @id @default(uuid()) @db.Uuid
+  id                  String        @id @default(uuid()) @db.Uuid
+  source              String?
+  source_url          String?
+  extraction_date     DateTime?
+  lead_type           String
+  name                String?
+  email               String?
+  phone               String?
+  address             String?
+  company_name        String?
+  website             String?
+  verification_status String        @default("new")
+  confidence          Float?
+  crm_stage           String        @default("new")
+  assigned_to         String?       @db.Uuid
+  created_by          String?       @db.Uuid
+  created_at          DateTime      @default(now())
+  updated_at          DateTime      @updatedAt
+  updated_by          String?       @db.Uuid
+  activities          Activity[]
+  customer            Customer?
+  comments            LeadComment[]
+  assignedUser        User?         @relation("LeadAssignedUser", fields: [assigned_to], references: [user_id])
+  createdBy           User?         @relation("LeadCreatedBy", fields: [created_by], references: [user_id])
+  updatedBy           User?         @relation("LeadUpdatedBy", fields: [updated_by], references: [user_id])
 
-  source          String?
-  source_url      String?
-  extraction_date DateTime?
-
-  lead_type String
-  // Customer, Vendor, AlliedSP, BConsultant
-
-  name         String?
-  email        String?
-  phone        String?
-  address      String?
-  company_name String?
-  website      String?
-
-  verification_status String @default("new")
-  // new, pending_verification, verified, not_interested, churned
-
-  confidence Float?
-
-  crm_stage String @default("new")
-  // new, contacted, qualified, proposal_sent, converted, lost, onboarded
-
-  assigned_to  String? @db.Uuid
-  assignedUser User?   @relation("LeadAssignedUser", fields: [assigned_to], references: [user_id])
-
-  created_by String? @db.Uuid
-  createdBy  User?   @relation("LeadCreatedBy", fields: [created_by], references: [user_id])
-
-  updated_by String? @db.Uuid
-  updatedBy  User?   @relation("LeadUpdatedBy", fields: [updated_by], references: [user_id])
-
-  comments LeadComment[]
-
-  customer Customer?
-
-  activities Activity[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("leads")
+  @@map("crm1_leads")
 }
 
 model LeadComment {
-  id String @id @default(uuid()) @db.Uuid
-
-  lead_id String @db.Uuid
-  lead    Lead   @relation(fields: [lead_id], references: [id], onDelete: Cascade)
-
-  updated_by String @db.Uuid
-  updatedBy  User   @relation(fields: [updated_by], references: [user_id])
-
-  comment String
-
+  id         String   @id @default(uuid()) @db.Uuid
+  lead_id    String   @db.Uuid
+  updated_by String   @db.Uuid
+  comment    String
   created_at DateTime @default(now())
+  lead       Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  updatedBy  User     @relation(fields: [updated_by], references: [user_id])
 
-  @@map("lead_comments")
+  @@map("crm1_lead_comments")
 }
 
 model Customer {
-  id String @id @default(uuid()) @db.Uuid
-
-  lead_id String? @unique @db.Uuid
-  lead    Lead?   @relation(fields: [lead_id], references: [id], onDelete: SetNull)
-
+  id            String     @id @default(uuid()) @db.Uuid
+  lead_id       String?    @unique @db.Uuid
   customer_type String?
+  name          String?
+  email         String?
+  phone         String?
+  address       String?
+  company_name  String?
+  website       String?
+  contact_info  String?
+  comments      String?
+  created_by    String?    @db.Uuid
+  updated_by    String?    @db.Uuid
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+  status        String     @default("active")
+  activities    Activity[]
+  createdBy     User?      @relation("CustomerCreatedBy", fields: [created_by], references: [user_id])
+  lead          Lead?      @relation(fields: [lead_id], references: [id])
+  updatedBy     User?      @relation("CustomerUpdatedBy", fields: [updated_by], references: [user_id])
+  deals         Deal[]
+  notes         Note[]
+  tasks         Task[]
 
-  deals Deal[]
-  tasks Task[]
-  notes Note[]
-
-  activities Activity[]
-
-  status String @default("active")
-  // active, inactive, blacklisted, archived
-
-  name         String?
-  email        String?
-  phone        String?
-  address      String?
-  company_name String?
-  website      String?
-
-  contact_info String?
-  comments     String?
-
-  created_by String? @db.Uuid
-  createdBy  User?   @relation("CustomerCreatedBy", fields: [created_by], references: [user_id])
-
-  updated_by String? @db.Uuid
-  updatedBy  User?   @relation("CustomerUpdatedBy", fields: [updated_by], references: [user_id])
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("customers")
+  @@map("crm1_customers")
 }
 
 model Deal {
-  id String @id @default(uuid()) @db.Uuid
+  id          String     @id @default(uuid()) @db.Uuid
+  customer_id String     @db.Uuid
+  offer       String
+  status      String     @default("new")
+  comment     String?
+  created_by  String?    @db.Uuid
+  updated_by  String?    @db.Uuid
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  activities  Activity[]
+  createdBy   User?      @relation("DealCreatedBy", fields: [created_by], references: [user_id])
+  customer    Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  updatedBy   User?      @relation("DealUpdatedBy", fields: [updated_by], references: [user_id])
+  notes       Note[]
+  tasks       Task[]
 
-  customer_id String   @db.Uuid
-  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-
-  offer String
-
-  status String @default("new")
-  // new, qualified, proposal, negotiation, won, lost
-
-  comment String?
-
-  created_by String? @db.Uuid
-  createdBy  User?   @relation("DealCreatedBy", fields: [created_by], references: [user_id])
-
-  updated_by String? @db.Uuid
-  updatedBy  User?   @relation("DealUpdatedBy", fields: [updated_by], references: [user_id])
-
-  tasks Task[]
-  notes Note[]
-
-  activities Activity[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("deals")
+  @@map("crm1_deals")
 }
 
 model Task {
-  id String @id @default(uuid()) @db.Uuid
+  id           String     @id @default(uuid()) @db.Uuid
+  customer_id  String     @db.Uuid
+  deal_id      String?    @db.Uuid
+  assigned_to  String     @db.Uuid
+  title        String
+  description  String?
+  status       String     @default("pending")
+  priority     String     @default("medium")
+  due_date     DateTime?
+  comment      String?
+  created_by   String?    @db.Uuid
+  updated_by   String?    @db.Uuid
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+  activities   Activity[]
+  notes        Note[]
+  assignedUser User       @relation("TaskAssignedUser", fields: [assigned_to], references: [user_id])
+  createdBy    User?      @relation("TaskCreatedBy", fields: [created_by], references: [user_id])
+  customer     Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  deal         Deal?      @relation(fields: [deal_id], references: [id])
+  updatedBy    User?      @relation("TaskUpdatedBy", fields: [updated_by], references: [user_id])
 
-  customer_id String   @db.Uuid
-  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-
-  deal_id String? @db.Uuid
-  deal    Deal?   @relation(fields: [deal_id], references: [id], onDelete: SetNull)
-
-  assigned_to  String @db.Uuid
-  assignedUser User   @relation("TaskAssignedUser", fields: [assigned_to], references: [user_id])
-
-  title       String
-  description String?
-
-  status String @default("pending")
-  // pending, in_progress, completed, cancelled
-
-  priority String @default("medium")
-  // low, medium, high, urgent
-
-  due_date DateTime?
-
-  comment String?
-
-  created_by String? @db.Uuid
-  createdBy  User?   @relation("TaskCreatedBy", fields: [created_by], references: [user_id])
-
-  updated_by String? @db.Uuid
-  updatedBy  User?   @relation("TaskUpdatedBy", fields: [updated_by], references: [user_id])
-
-  notes Note[]
-
-  activities Activity[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("tasks")
+  @@map("crm1_tasks")
 }
 
 model Note {
-  id String @id @default(uuid()) @db.Uuid
+  id          String     @id @default(uuid()) @db.Uuid
+  customer_id String     @db.Uuid
+  deal_id     String?    @db.Uuid
+  task_id     String?    @db.Uuid
+  note        String
+  created_by  String?    @db.Uuid
+  updated_by  String?    @db.Uuid
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  activities  Activity[]
+  createdBy   User?      @relation("NoteCreatedBy", fields: [created_by], references: [user_id])
+  customer    Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  deal        Deal?      @relation(fields: [deal_id], references: [id])
+  task        Task?      @relation(fields: [task_id], references: [id])
+  updatedBy   User?      @relation("NoteUpdatedBy", fields: [updated_by], references: [user_id])
 
-  customer_id String   @db.Uuid
-  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-
-  deal_id String? @db.Uuid
-  deal    Deal?   @relation(fields: [deal_id], references: [id], onDelete: SetNull)
-
-  task_id String? @db.Uuid
-  task    Task?   @relation(fields: [task_id], references: [id], onDelete: SetNull)
-
-  note String
-
-  created_by String? @db.Uuid
-  createdBy  User?   @relation("NoteCreatedBy", fields: [created_by], references: [user_id])
-
-  updated_by String? @db.Uuid
-  updatedBy  User?   @relation("NoteUpdatedBy", fields: [updated_by], references: [user_id])
-
-  activities Activity[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("notes")
+  @@map("crm1_notes")
 }
 
 model Activity {
-  id String @id @default(uuid()) @db.Uuid
-
+  id          String    @id @default(uuid()) @db.Uuid
   entity_type String
-  // lead, customer, deal, task, note
-
-  entity_id String @db.Uuid
-
-  action String
-  // lead_created, lead_updated, lead_assigned, lead_verified,
-  // customer_created, customer_updated, customer_archived,
-  // deal_created, deal_updated, deal_status_updated,
-  // task_created, task_updated, task_status_updated,
-  // note_created, note_updated, note_deleted
-
+  entity_id   String    @db.Uuid
+  action      String
   description String?
-
-  lead_id String? @db.Uuid
-  lead    Lead?   @relation(fields: [lead_id], references: [id], onDelete: SetNull)
-
+  lead_id     String?   @db.Uuid
   customer_id String?   @db.Uuid
-  customer    Customer? @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+  deal_id     String?   @db.Uuid
+  task_id     String?   @db.Uuid
+  note_id     String?   @db.Uuid
+  created_by  String?   @db.Uuid
+  created_at  DateTime  @default(now())
+  createdBy   User?     @relation("ActivityCreatedBy", fields: [created_by], references: [user_id])
+  customer    Customer? @relation(fields: [customer_id], references: [id])
+  deal        Deal?     @relation(fields: [deal_id], references: [id])
+  lead        Lead?     @relation(fields: [lead_id], references: [id])
+  note        Note?     @relation(fields: [note_id], references: [id])
+  task        Task?     @relation(fields: [task_id], references: [id])
 
-  deal_id String? @db.Uuid
-  deal    Deal?   @relation(fields: [deal_id], references: [id], onDelete: SetNull)
-
-  task_id String? @db.Uuid
-  task    Task?   @relation(fields: [task_id], references: [id], onDelete: SetNull)
-
-  note_id String? @db.Uuid
-  note    Note?   @relation(fields: [note_id], references: [id], onDelete: SetNull)
-
-  created_by String? @db.Uuid
-  createdBy  User?   @relation("ActivityCreatedBy", fields: [created_by], references: [user_id])
-
-  created_at DateTime @default(now())
-
-  @@map("activities")
+  @@map("crm1_activities")
 }
 
 model AuthLog {
-  id String @id @default(uuid()) @db.Uuid
-
-  user_id String? @db.Uuid
-  user    User?   @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
-
-  email String?
-
-  action String
-  // user_registered, login_success, login_failed, account_inactive_login_attempt
-
-  status String
-  // success, failed, blocked
-
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String?  @db.Uuid
+  email       String?
+  action      String
+  status      String
   description String?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  user        User?    @relation(fields: [user_id], references: [user_id])
 
-  ip_address String?
-  user_agent String?
+  @@map("crm1_auth_logs")
+}
 
-  created_at DateTime @default(now())
+model industry_data {
+  i_id      Int     @id @default(autoincrement())
+  id        String  @db.Uuid
+  file_name String? @db.VarChar(255)
+  json_data Json?
+}
 
-  @@map("auth_logs")
+model menu_data {
+  i_id           String           @id
+  id             Int              @unique
+  name           String
+  parentId       Boolean
+  shortName      String
+  title          String
+  icon           String
+  path           String
+  user_wise_menu user_wise_menu[]
+}
+
+model user_wise_menu {
+  i_id      String    @id
+  userId    Int
+  menuId    Int
+  menu_data menu_data @relation(fields: [menuId], references: [id])
 }
