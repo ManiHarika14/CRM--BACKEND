@@ -1,3 +1,4 @@
+
 const bcrypt = require("bcryptjs");
 const prisma = require("../utils/prisma");
 const generateToken = require("../utils/generateToken");
@@ -40,7 +41,7 @@ const register = async (req, res) => {
         email: true,
         role: true,
         status: true,
-        created_at: true,
+        
       },
     });
 

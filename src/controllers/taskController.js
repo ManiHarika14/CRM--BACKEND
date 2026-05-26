@@ -8,12 +8,9 @@ const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
 
 const isValidUUID = (value) => {
   if (!value) return false;
-
   const uuid = String(value).trim();
-
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
   return uuidRegex.test(uuid);
 };
 
@@ -31,15 +28,12 @@ const getLoggedInUserId = (req) => {
     req.user?.user?.id ||
     req.userId ||
     null;
-
   return userId ? String(userId).trim() : null;
 };
 
 const isValidDate = (value) => {
   if (!value) return true;
-
   const date = new Date(value);
-
   return !Number.isNaN(date.getTime());
 };
 
@@ -73,22 +67,7 @@ const taskInclude = {
       status: true,
     },
   },
-  createdBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
-  updatedBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
+  // removed createdBy/updatedBy includes
 };
 
 const createTask = async (req, res) => {
@@ -252,8 +231,6 @@ const createTask = async (req, res) => {
         priority: taskPriority,
         due_date: due_date ? new Date(due_date) : null,
         comment: cleanComment,
-        created_by: loggedInUserId,
-        updated_by: loggedInUserId,
       },
       include: taskInclude,
     });
@@ -266,7 +243,6 @@ const createTask = async (req, res) => {
       customer_id: task.customer_id,
       deal_id: task.deal_id,
       task_id: task.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(201).json({
@@ -275,7 +251,6 @@ const createTask = async (req, res) => {
     });
   } catch (error) {
     console.error("Create task error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -374,7 +349,6 @@ const getTasks = async (req, res) => {
 
     if (search && cleanString(search)) {
       const cleanSearch = cleanString(search);
-
       where.OR = [
         {
           title: {
@@ -427,7 +401,7 @@ const getTasks = async (req, res) => {
         where,
         include: taskInclude,
         orderBy: {
-          created_at: "desc",
+          i_id: "desc",
         },
         skip: (pageNumber - 1) * limitNumber,
         take: limitNumber,
@@ -446,7 +420,6 @@ const getTasks = async (req, res) => {
     });
   } catch (error) {
     console.error("Get tasks error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -482,7 +455,6 @@ const getTaskById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get task by id error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -530,9 +502,7 @@ const updateTask = async (req, res) => {
       });
     }
 
-    const data = {
-      updated_by: loggedInUserId,
-    };
+    const data = {};
 
     const finalCustomerId = customer_id || existingTask.customer_id;
 
@@ -722,7 +692,6 @@ const updateTask = async (req, res) => {
       customer_id: task.customer_id,
       deal_id: task.deal_id,
       task_id: task.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(200).json({
@@ -731,7 +700,6 @@ const updateTask = async (req, res) => {
     });
   } catch (error) {
     console.error("Update task error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -798,7 +766,6 @@ const updateTaskStatus = async (req, res) => {
       data: {
         status: cleanStatus,
         comment: cleanComment ?? existingTask.comment,
-        updated_by: loggedInUserId,
       },
       include: taskInclude,
     });
@@ -811,7 +778,6 @@ const updateTaskStatus = async (req, res) => {
       customer_id: task.customer_id,
       deal_id: task.deal_id,
       task_id: task.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(200).json({
@@ -820,7 +786,6 @@ const updateTaskStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("Update task status error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -858,8 +823,6 @@ const deleteTask = async (req, res) => {
       customer_id: existingTask.customer_id,
       deal_id: existingTask.deal_id,
       task_id: existingTask.id,
-      created_by:
-        loggedInUserId && isValidUUID(loggedInUserId) ? loggedInUserId : null,
     });
 
     await prisma.task.delete({
@@ -873,7 +836,6 @@ const deleteTask = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete task error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });

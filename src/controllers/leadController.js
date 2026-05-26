@@ -33,17 +33,11 @@ const userSelect = {
 
 const leadInclude = {
   assignedUser: { select: userSelect },
-  createdBy: { select: userSelect },
-  updatedBy: { select: userSelect },
   comments: {
     orderBy: {
-      created_at: "desc",
+      i_id: "desc",
     },
-    include: {
-      updatedBy: {
-        select: userSelect,
-      },
-    },
+    // avoid updatedBy includes
   },
 };
 
@@ -89,15 +83,13 @@ const validateComment = (comment) => {
   if (!comment || !comment.trim()) {
     return "comment is required";
   }
-
   return null;
 };
 
-const createLeadComment = async ({ lead_id, updated_by, comment }) => {
+const createLeadComment = async ({ lead_id, comment }) => {
   await prisma.leadComment.create({
     data: {
       lead_id,
-      updated_by,
       comment: comment.trim(),
     },
   });
@@ -113,79 +105,59 @@ const normalizeHeader = (value) => {
 
 const cleanImportValue = (value) => {
   if (value === null || value === undefined) return null;
-
   const cleaned = String(value).trim();
-
   return cleaned.length ? cleaned : null;
 };
 
 const normalizeEmail = (value) => {
   const email = cleanImportValue(value);
-
   if (!email) return null;
-
   return email.toLowerCase();
 };
 
 const isValidEmail = (value) => {
   if (!value) return true;
-
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   return emailRegex.test(String(value).trim().toLowerCase());
 };
 
 const normalizeLeadType = (value) => {
   const cleaned = cleanImportValue(value);
-
   if (!cleaned) return "Customer";
-
   const foundType = allowedLeadTypes.find(
     (type) => type.toLowerCase() === cleaned.toLowerCase()
   );
-
   return foundType || "Customer";
 };
 
 const normalizeVerificationStatus = (value) => {
   const cleaned = cleanImportValue(value);
-
   if (!cleaned) return "new";
-
   const normalized = cleaned.toLowerCase().replace(/\s+/g, "_");
-
   return allowedVerificationStatuses.includes(normalized) ? normalized : "new";
 };
 
 const normalizeCrmStage = (value) => {
   const cleaned = cleanImportValue(value);
-
   if (!cleaned) return "new";
-
   const normalized = cleaned.toLowerCase().replace(/\s+/g, "_");
-
   return allowedCrmStages.includes(normalized) ? normalized : "new";
 };
 
 const parseImportDate = (value) => {
   if (!value) return null;
-
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return null;
-
   return date;
 };
 
 const pickImportValue = (row, possibleHeaders) => {
   for (const header of possibleHeaders) {
     const normalizedHeader = normalizeHeader(header);
-
     if (row[normalizedHeader] !== undefined && row[normalizedHeader] !== null) {
       return row[normalizedHeader];
     }
   }
-
   return null;
 };
 
@@ -235,9 +207,7 @@ const mapImportRow = (row) => {
         "contact_number",
       ])
     ),
-    address: cleanImportValue(
-      pickImportValue(row, ["address", "location", "city"])
-    ),
+    address: cleanImportValue(pickImportValue(row, ["address", "location", "city"])),
     company_name: cleanImportValue(
       pickImportValue(row, [
         "company",
@@ -253,11 +223,7 @@ const mapImportRow = (row) => {
       pickImportValue(row, ["website", "web site", "web_site", "site"])
     ),
     verification_status: normalizeVerificationStatus(
-      pickImportValue(row, [
-        "verification_status",
-        "verification status",
-        "status",
-      ])
+      pickImportValue(row, ["verification_status", "verification status", "status"])
     ),
     confidence: pickImportValue(row, ["confidence", "score"])
       ? Number(pickImportValue(row, ["confidence", "score"]))
@@ -276,11 +242,9 @@ const getDuplicateKey = (lead) => {
 
 const chunkArray = (items, size = 1000) => {
   const chunks = [];
-
   for (let index = 0; index < items.length; index += size) {
     chunks.push(items.slice(index, index + size));
   }
-
   return chunks;
 };
 
@@ -289,26 +253,19 @@ const getRowsFromUploadedFile = (fileBuffer) => {
     type: "buffer",
     cellDates: true,
   });
-
   const firstSheetName = workbook.SheetNames[0];
-
   if (!firstSheetName) {
     return [];
   }
-
   const worksheet = workbook.Sheets[firstSheetName];
-
   const rawRows = XLSX.utils.sheet_to_json(worksheet, {
     defval: "",
   });
-
   return rawRows.map((row) => {
     const normalizedRow = {};
-
     Object.entries(row).forEach(([key, value]) => {
       normalizedRow[normalizeHeader(key)] = value;
     });
-
     return normalizedRow;
   });
 };
@@ -372,8 +329,6 @@ const createLead = async (req, res) => {
         confidence,
         crm_stage: crm_stage || "new",
         assigned_to,
-        created_by: req.user.user_id,
-        updated_by: req.user.user_id,
       },
       include: leadInclude,
     });
@@ -382,11 +337,8 @@ const createLead = async (req, res) => {
       entity_type: "lead",
       entity_id: lead.id,
       action: "lead_created",
-      description: `Lead created: ${
-        lead.name || lead.company_name || lead.email || lead.id
-      }`,
+      description: `Lead created: ${lead.name || lead.company_name || lead.email || lead.id}`,
       lead_id: lead.id,
-      created_by: req.user?.user_id || null,
     });
 
     return res.status(201).json({
@@ -413,7 +365,6 @@ const importLeads = async (req, res) => {
     }
 
     const { assigned_to } = req.body;
-
     const assignmentError = await validateAssignedUser(assigned_to);
 
     if (assignmentError) {
@@ -498,13 +449,9 @@ const importLeads = async (req, res) => {
         company_name: mappedLead.company_name,
         website: mappedLead.website,
         verification_status: mappedLead.verification_status,
-        confidence: Number.isFinite(mappedLead.confidence)
-          ? mappedLead.confidence
-          : null,
+        confidence: Number.isFinite(mappedLead.confidence) ? mappedLead.confidence : null,
         crm_stage: mappedLead.crm_stage,
         assigned_to,
-        created_by: req.user.user_id,
-        updated_by: req.user.user_id,
       });
     });
 
@@ -520,35 +467,14 @@ const importLeads = async (req, res) => {
       });
     }
 
-    const emails = validLeads
-      .map((lead) => lead.email)
-      .filter(Boolean);
-
-    const phones = validLeads
-      .map((lead) => lead.phone)
-      .filter(Boolean);
+    const emails = validLeads.map((lead) => lead.email).filter(Boolean);
+    const phones = validLeads.map((lead) => lead.phone).filter(Boolean);
 
     const existingLeads = await prisma.lead.findMany({
       where: {
         OR: [
-          ...(emails.length
-            ? [
-                {
-                  email: {
-                    in: emails,
-                  },
-                },
-              ]
-            : []),
-          ...(phones.length
-            ? [
-                {
-                  phone: {
-                    in: phones,
-                  },
-                },
-              ]
-            : []),
+          ...(emails.length ? [{ email: { in: emails } }] : []),
+          ...(phones.length ? [{ phone: { in: phones } }] : []),
         ],
       },
       select: {
@@ -557,48 +483,31 @@ const importLeads = async (req, res) => {
       },
     });
 
-    const existingEmailSet = new Set(
-      existingLeads.map((lead) => lead.email).filter(Boolean)
-    );
-
-    const existingPhoneSet = new Set(
-      existingLeads.map((lead) => lead.phone).filter(Boolean)
-    );
+    const existingEmailSet = new Set(existingLeads.map((l) => l.email).filter(Boolean));
+    const existingPhoneSet = new Set(existingLeads.map((l) => l.phone).filter(Boolean));
 
     const leadsToCreate = [];
 
     validLeads.forEach((lead, index) => {
       const rowNumber = index + 2;
-
       if (lead.email && existingEmailSet.has(lead.email)) {
-        errors.push({
-          row: rowNumber,
-          reason: "Email already exists in CRM",
-        });
+        errors.push({ row: rowNumber, reason: "Email already exists in CRM" });
         return;
       }
-
       if (lead.phone && existingPhoneSet.has(lead.phone)) {
-        errors.push({
-          row: rowNumber,
-          reason: "Phone already exists in CRM",
-        });
+        errors.push({ row: rowNumber, reason: "Phone already exists in CRM" });
         return;
       }
-
       leadsToCreate.push(lead);
     });
 
     let created = 0;
-
     const batches = chunkArray(leadsToCreate, 1000);
-
     for (const batch of batches) {
       const result = await prisma.lead.createMany({
         data: batch,
         skipDuplicates: true,
       });
-
       created += result.count || 0;
     }
 
@@ -606,11 +515,10 @@ const importLeads = async (req, res) => {
       try {
         const latestImportedLead = await prisma.lead.findFirst({
           where: {
-            created_by: req.user.user_id,
             source: "import",
           },
           orderBy: {
-            created_at: "desc",
+            i_id: "desc",
           },
           select: {
             id: true,
@@ -624,7 +532,6 @@ const importLeads = async (req, res) => {
             action: "leads_imported",
             description: `Lead import completed. File: ${req.file.originalname}. Total rows: ${rows.length}. Created: ${created}. Failed/skipped: ${rows.length - created}.`,
             lead_id: latestImportedLead.id,
-            created_by: req.user?.user_id || null,
           });
         }
       } catch (activityError) {
@@ -641,14 +548,10 @@ const importLeads = async (req, res) => {
       skipped: rows.length - created,
       failed: errors.length,
       errors: errors.slice(0, 200),
-      note:
-        errors.length > 200
-          ? "Only first 200 errors are returned to keep response readable"
-          : undefined,
+      note: errors.length > 200 ? "Only first 200 errors are returned" : undefined,
     });
   } catch (error) {
     console.error("IMPORT LEADS ERROR:", error);
-
     return res.status(500).json({
       success: false,
       message: "Server error while importing leads",
@@ -670,7 +573,6 @@ const getLeads = async (req, res) => {
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
-
     const where = {};
 
     if (lead_type) where.lead_type = lead_type;
@@ -678,9 +580,7 @@ const getLeads = async (req, res) => {
     if (crm_stage) {
       where.crm_stage = crm_stage;
     } else if (include_converted !== "true") {
-      where.crm_stage = {
-        not: "converted",
-      };
+      where.crm_stage = { not: "converted" };
     }
     if (assigned_to) where.assigned_to = assigned_to;
 
@@ -699,9 +599,7 @@ const getLeads = async (req, res) => {
         where,
         skip,
         take: Number(limit),
-        orderBy: {
-          created_at: "desc",
-        },
+        orderBy: { i_id: "desc" },
         include: leadInclude,
       }),
       prisma.lead.count({ where }),
@@ -713,8 +611,8 @@ const getLeads = async (req, res) => {
       total,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
-include_converted: include_converted === "true",
-data: leads,
+      include_converted: include_converted === "true",
+      data: leads,
     });
   } catch (error) {
     console.error("GET LEADS ERROR:", error);
@@ -816,7 +714,6 @@ const updateLead = async (req, res) => {
 
     if (assigned_to !== undefined) {
       const assignmentError = await validateAssignedUser(assigned_to);
-
       if (assignmentError) {
         return res.status(400).json({
           success: false,
@@ -826,7 +723,6 @@ const updateLead = async (req, res) => {
     }
 
     const commentError = validateComment(comment);
-
     if (commentError) {
       return res.status(400).json({
         success: false,
@@ -851,13 +747,11 @@ const updateLead = async (req, res) => {
         confidence,
         crm_stage,
         assigned_to,
-        updated_by: req.user.user_id,
       },
     });
 
     await createLeadComment({
       lead_id: id,
-      updated_by: req.user.user_id,
       comment,
     });
 
@@ -870,14 +764,8 @@ const updateLead = async (req, res) => {
       entity_type: "lead",
       entity_id: updatedLead.id,
       action: "lead_updated",
-      description: `Lead updated: ${
-        updatedLead.name ||
-        updatedLead.company_name ||
-        updatedLead.email ||
-        updatedLead.id
-      }`,
+      description: `Lead updated: ${updatedLead.name || updatedLead.company_name || updatedLead.email || updatedLead.id}`,
       lead_id: updatedLead.id,
-      created_by: req.user?.user_id || null,
     });
 
     return res.status(200).json({
@@ -911,7 +799,6 @@ const assignLead = async (req, res) => {
     }
 
     const assignmentError = await validateAssignedUser(assigned_to);
-
     if (assignmentError) {
       return res.status(400).json({
         success: false,
@@ -920,7 +807,6 @@ const assignLead = async (req, res) => {
     }
 
     const commentError = validateComment(comment);
-
     if (commentError) {
       return res.status(400).json({
         success: false,
@@ -932,13 +818,11 @@ const assignLead = async (req, res) => {
       where: { id },
       data: {
         assigned_to,
-        updated_by: req.user.user_id,
       },
     });
 
     await createLeadComment({
       lead_id: id,
-      updated_by: req.user.user_id,
       comment,
     });
 
@@ -951,11 +835,8 @@ const assignLead = async (req, res) => {
       entity_type: "lead",
       entity_id: updatedLead.id,
       action: "lead_assigned",
-      description: `Lead assigned from ${lead.assigned_to || "unassigned"} to ${
-        updatedLead.assigned_to
-      }.`,
+      description: `Lead assigned from ${lead.assigned_to || "unassigned"} to ${updatedLead.assigned_to}.`,
       lead_id: updatedLead.id,
-      created_by: req.user?.user_id || null,
     });
 
     return res.status(200).json({
@@ -997,7 +878,6 @@ const updateLeadStage = async (req, res) => {
     }
 
     const commentError = validateComment(comment);
-
     if (commentError) {
       return res.status(400).json({
         success: false,
@@ -1009,13 +889,11 @@ const updateLeadStage = async (req, res) => {
       where: { id },
       data: {
         crm_stage,
-        updated_by: req.user.user_id,
       },
     });
 
     await createLeadComment({
       lead_id: id,
-      updated_by: req.user.user_id,
       comment,
     });
 
@@ -1030,7 +908,6 @@ const updateLeadStage = async (req, res) => {
       action: "lead_stage_updated",
       description: `Lead stage changed from ${lead.crm_stage} to ${updatedLead.crm_stage}.`,
       lead_id: updatedLead.id,
-      created_by: req.user?.user_id || null,
     });
 
     return res.status(200).json({
@@ -1075,7 +952,6 @@ const updateVerificationStatus = async (req, res) => {
     }
 
     const commentError = validateComment(comment);
-
     if (commentError) {
       return res.status(400).json({
         success: false,
@@ -1087,13 +963,11 @@ const updateVerificationStatus = async (req, res) => {
       where: { id },
       data: {
         verification_status,
-        updated_by: req.user.user_id,
       },
     });
 
     await createLeadComment({
       lead_id: id,
-      updated_by: req.user.user_id,
       comment,
     });
 
@@ -1108,7 +982,6 @@ const updateVerificationStatus = async (req, res) => {
       action: "lead_verification_updated",
       description: `Lead verification changed from ${lead.verification_status} to ${updatedLead.verification_status}.`,
       lead_id: updatedLead.id,
-      created_by: req.user?.user_id || null,
     });
 
     return res.status(200).json({
@@ -1144,11 +1017,8 @@ const deleteLead = async (req, res) => {
       entity_type: "lead",
       entity_id: lead.id,
       action: "lead_deleted",
-      description: `Lead deleted: ${
-        lead.name || lead.company_name || lead.email || lead.id
-      }`,
+      description: `Lead deleted: ${lead.name || lead.company_name || lead.email || lead.id}`,
       lead_id: lead.id,
-      created_by: req.user?.user_id || null,
     });
 
     await prisma.lead.delete({

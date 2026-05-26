@@ -15,7 +15,6 @@ const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
 const isValidUUID = (value) => {
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
   return typeof value === "string" && uuidRegex.test(value);
 };
 
@@ -42,22 +41,8 @@ const dealInclude = {
       lead_id: true,
     },
   },
-  createdBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
-  updatedBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
+  notes: true,
+  tasks: true,
 };
 
 const createDeal = async (req, res) => {
@@ -133,8 +118,6 @@ const createDeal = async (req, res) => {
         offer: cleanOffer,
         status: dealStatus,
         comment: cleanComment,
-        created_by: loggedInUserId,
-        updated_by: loggedInUserId,
       },
       include: dealInclude,
     });
@@ -146,7 +129,6 @@ const createDeal = async (req, res) => {
       description: `Deal created with status ${deal.status}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(201).json({
@@ -259,7 +241,7 @@ const getDeals = async (req, res) => {
         where,
         include: dealInclude,
         orderBy: {
-          created_at: "desc",
+          i_id: "desc",
         },
         skip: (pageNumber - 1) * limitNumber,
         take: limitNumber,
@@ -351,9 +333,7 @@ const updateDeal = async (req, res) => {
       });
     }
 
-    const data = {
-      updated_by: loggedInUserId,
-    };
+    const data = {};
 
     if (offer !== undefined) {
       const cleanOffer = cleanString(offer);
@@ -413,7 +393,6 @@ const updateDeal = async (req, res) => {
       description: `Deal updated. Current status is ${deal.status}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(200).json({
@@ -489,7 +468,6 @@ const updateDealStatus = async (req, res) => {
       data: {
         status: cleanStatus,
         comment: cleanComment ?? existingDeal.comment,
-        updated_by: loggedInUserId,
       },
       include: dealInclude,
     });
@@ -501,7 +479,6 @@ const updateDealStatus = async (req, res) => {
       description: `Deal status changed from ${existingDeal.status} to ${deal.status}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(200).json({
@@ -519,7 +496,6 @@ const updateDealStatus = async (req, res) => {
 
 const deleteDeal = async (req, res) => {
   try {
-    const loggedInUserId = getLoggedInUserId(req);
     const { id } = req.params;
 
     if (!isValidUUID(id)) {
@@ -540,21 +516,19 @@ const deleteDeal = async (req, res) => {
       });
     }
 
-    await createActivity({
-      entity_type: "deal",
-      entity_id: existingDeal.id,
-      action: "deal_deleted",
-      description: `Deal deleted. Previous status was ${existingDeal.status}.`,
-      customer_id: existingDeal.customer_id,
-      deal_id: existingDeal.id,
-      created_by:
-        loggedInUserId && isValidUUID(loggedInUserId) ? loggedInUserId : null,
-    });
-
     await prisma.deal.delete({
       where: {
         id,
       },
+    });
+
+    await createActivity({
+      entity_type: "deal",
+      entity_id: existingDeal.id,
+      action: "deal_deleted",
+      description: `Deal deleted.`,
+      customer_id: existingDeal.customer_id,
+      deal_id: existingDeal.id,
     });
 
     return res.status(200).json({

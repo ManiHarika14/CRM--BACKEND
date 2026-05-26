@@ -5,12 +5,9 @@ const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
 
 const isValidUUID = (value) => {
   if (!value) return false;
-
   const uuid = String(value).trim();
-
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
   return uuidRegex.test(uuid);
 };
 
@@ -66,28 +63,12 @@ const noteInclude = {
       due_date: true,
     },
   },
-  createdBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
-  updatedBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
+  // removed createdBy/updatedBy includes
 };
 
 const createNote = async (req, res) => {
   try {
     const loggedInUserId = getLoggedInUserId(req);
-
     const { customer_id, deal_id, task_id, note } = req.body;
 
     if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
@@ -198,8 +179,6 @@ const createNote = async (req, res) => {
         deal_id: deal_id || null,
         task_id: task_id || null,
         note: cleanNote,
-        created_by: loggedInUserId,
-        updated_by: loggedInUserId,
       },
       include: noteInclude,
     });
@@ -213,7 +192,6 @@ const createNote = async (req, res) => {
       deal_id: createdNote.deal_id,
       task_id: createdNote.task_id,
       note_id: createdNote.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(201).json({
@@ -222,7 +200,6 @@ const createNote = async (req, res) => {
     });
   } catch (error) {
     console.error("Create note error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -236,7 +213,6 @@ const getNotes = async (req, res) => {
       customer_id,
       deal_id,
       task_id,
-      created_by,
       page = 1,
       limit = 10,
     } = req.query;
@@ -268,7 +244,6 @@ const getNotes = async (req, res) => {
           message: "Invalid customer_id",
         });
       }
-
       where.customer_id = customer_id;
     }
 
@@ -278,7 +253,6 @@ const getNotes = async (req, res) => {
           message: "Invalid deal_id",
         });
       }
-
       where.deal_id = deal_id;
     }
 
@@ -288,23 +262,11 @@ const getNotes = async (req, res) => {
           message: "Invalid task_id",
         });
       }
-
       where.task_id = task_id;
-    }
-
-    if (created_by) {
-      if (!isValidUUID(created_by)) {
-        return res.status(400).json({
-          message: "Invalid created_by user id",
-        });
-      }
-
-      where.created_by = created_by;
     }
 
     if (search && cleanString(search)) {
       const cleanSearch = cleanString(search);
-
       where.OR = [
         {
           note: {
@@ -361,7 +323,7 @@ const getNotes = async (req, res) => {
         where,
         include: noteInclude,
         orderBy: {
-          created_at: "desc",
+          i_id: "desc",
         },
         skip: (pageNumber - 1) * limitNumber,
         take: limitNumber,
@@ -380,7 +342,6 @@ const getNotes = async (req, res) => {
     });
   } catch (error) {
     console.error("Get notes error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -416,7 +377,6 @@ const getNoteById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get note by id error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -453,9 +413,7 @@ const updateNote = async (req, res) => {
       });
     }
 
-    const data = {
-      updated_by: loggedInUserId,
-    };
+    const data = {};
 
     const finalCustomerId = customer_id || existingNote.customer_id;
     const finalDealId =
@@ -598,7 +556,6 @@ const updateNote = async (req, res) => {
       deal_id: updatedNote.deal_id,
       task_id: updatedNote.task_id,
       note_id: updatedNote.id,
-      created_by: loggedInUserId,
     });
 
     return res.status(200).json({
@@ -607,7 +564,6 @@ const updateNote = async (req, res) => {
     });
   } catch (error) {
     console.error("Update note error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -652,7 +608,6 @@ const deleteNote = async (req, res) => {
       deal_id: existingNote.deal_id,
       task_id: existingNote.task_id,
       note_id: existingNote.id,
-      created_by: loggedInUserId,
     });
 
     await prisma.note.delete({
@@ -666,7 +621,6 @@ const deleteNote = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete note error:", error);
-
     return res.status(500).json({
       message: "Internal server error",
     });

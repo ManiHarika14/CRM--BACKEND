@@ -2,12 +2,9 @@ const prisma = require("./prisma");
 
 const isValidUUID = (value) => {
   if (!value) return false;
-
   const uuid = String(value).trim();
-
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
   return uuidRegex.test(uuid);
 };
 
@@ -27,7 +24,6 @@ const createActivity = async ({
   deal_id,
   task_id,
   note_id,
-  created_by,
 }) => {
   try {
     const cleanEntityType = cleanString(entity_type);
@@ -55,20 +51,12 @@ const createActivity = async ({
         entity_id: String(entity_id).trim(),
         action: cleanAction,
         description: cleanDescription,
-
         lead_id: lead_id && isValidUUID(lead_id) ? String(lead_id).trim() : null,
         customer_id:
-          customer_id && isValidUUID(customer_id)
-            ? String(customer_id).trim()
-            : null,
+          customer_id && isValidUUID(customer_id) ? String(customer_id).trim() : null,
         deal_id: deal_id && isValidUUID(deal_id) ? String(deal_id).trim() : null,
         task_id: task_id && isValidUUID(task_id) ? String(task_id).trim() : null,
         note_id: note_id && isValidUUID(note_id) ? String(note_id).trim() : null,
-
-        created_by:
-          created_by && isValidUUID(created_by)
-            ? String(created_by).trim()
-            : null,
       },
     });
 
