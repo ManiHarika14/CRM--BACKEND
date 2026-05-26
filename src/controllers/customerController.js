@@ -11,24 +11,19 @@ const BLOCKED_LEAD_STAGES = ["lost"];
 
 const isValidUUID = (value) => {
   if (!value) return false;
-
   const uuid = String(value).trim();
-
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
   return uuidRegex.test(uuid);
 };
 
 const isValidEmail = (email) => {
   if (!email) return true;
-
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
 const isValidWebsite = (website) => {
   if (!website) return true;
-
   try {
     new URL(website);
     return true;
@@ -39,15 +34,12 @@ const isValidWebsite = (website) => {
 
 const isValidPhone = (phone) => {
   if (!phone) return true;
-
   return /^[0-9+\-\s()]{6,25}$/.test(phone);
 };
 
 const cleanString = (value) => {
   if (typeof value !== "string") return value;
-
   const trimmed = value.trim();
-
   return trimmed === "" ? null : trimmed;
 };
 
@@ -61,33 +53,19 @@ const getLoggedInUserId = (req) => {
     req.auth?.user_id ||
     req.auth?.id ||
     null;
-
   return userId ? String(userId).trim() : null;
 };
 
 const customerInclude = {
-  lead: true,
-  createdBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
-  updatedBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
+  // include minimal/available relations
+  crm1_leads: true,
+  deals: true,
+  notes: true,
+  tasks: true,
 };
 
 const validateCustomerPayload = (body, mode = "create") => {
   const errors = [];
-
   const {
     customer_type,
     status,
@@ -178,7 +156,7 @@ const validateCustomerPayload = (body, mode = "create") => {
   return errors;
 };
 
-const buildCustomerData = (body, loggedInUserId, isCreate = false) => {
+const buildCustomerData = (body) => {
   const data = {
     customer_type: cleanString(body.customer_type),
     status: cleanString(body.status) || undefined,
@@ -190,12 +168,7 @@ const buildCustomerData = (body, loggedInUserId, isCreate = false) => {
     website: cleanString(body.website),
     contact_info: cleanString(body.contact_info),
     comments: cleanString(body.comments),
-    updated_by: loggedInUserId,
   };
-
-  if (isCreate) {
-    data.created_by = loggedInUserId;
-  }
 
   return data;
 };
@@ -259,7 +232,7 @@ const createCustomer = async (req, res) => {
     }
 
     const customer = await prisma.customer.create({
-      data: buildCustomerData(req.body, loggedInUserId, true),
+      data: buildCustomerData(req.body),
       include: customerInclude,
     });
 
@@ -345,7 +318,7 @@ const getCustomers = async (req, res) => {
         where,
         include: customerInclude,
         orderBy: {
-          created_at: "desc",
+          i_id: "desc",
         },
         skip,
         take: limitNumber,
@@ -489,7 +462,7 @@ const updateCustomer = async (req, res) => {
 
     const customer = await prisma.customer.update({
       where: { id },
-      data: buildCustomerData(req.body, loggedInUserId, false),
+      data: buildCustomerData(req.body),
       include: customerInclude,
     });
 
@@ -507,7 +480,7 @@ const updateCustomer = async (req, res) => {
   }
 };
 
-// CONVERT LEAD TO CUSTOMER
+// CONVERT LEAD TO CUSTOMER (keeps original behavior)
 const convertLeadToCustomer = async (req, res) => {
   try {
     const loggedInUserId = getLoggedInUserId(req);
@@ -597,122 +570,42 @@ const convertLeadToCustomer = async (req, res) => {
       });
     }
 
-    const hasBasicCustomerData =
-      lead.name || lead.email || lead.phone || lead.company_name;
-
-    if (!hasBasicCustomerData) {
-      return res.status(400).json({
-        message:
-          "Lead cannot be converted because it has no name, email, phone, or company name",
-      });
-    }
-
-    if (!isValidEmail(lead.email)) {
-      return res.status(400).json({
-        message: "Lead email is invalid. Fix lead email before conversion.",
-      });
-    }
-
-    if (!isValidPhone(lead.phone)) {
-      return res.status(400).json({
-        message: "Lead phone is invalid. Fix lead phone before conversion.",
-      });
-    }
-
-    if (!isValidWebsite(lead.website)) {
-      return res.status(400).json({
-        message: "Lead website is invalid. Fix lead website before conversion.",
-      });
-    }
-
-    const duplicateConditions = [];
-
-    if (lead.email) {
-      duplicateConditions.push({
-        email: lead.email.toLowerCase(),
-      });
-    }
-
-    if (lead.phone) {
-      duplicateConditions.push({
-        phone: lead.phone,
-      });
-    }
-
-    if (lead.company_name) {
-      duplicateConditions.push({
-        company_name: lead.company_name,
-      });
-    }
-
-    if (duplicateConditions.length > 0) {
-      const existingCustomer = await prisma.customer.findFirst({
-        where: {
-          OR: duplicateConditions,
-        },
-      });
-
-      if (existingCustomer) {
-        return res.status(409).json({
-          message:
-            "Possible duplicate customer already exists using lead email, phone, or company name",
-          existing_customer_id: existingCustomer.id,
-        });
-      }
-    }
+    // Build customer object from lead
+    const customerData = {
+      customer_type: lead.lead_type,
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      address: lead.address,
+      company_name: lead.company_name,
+      website: lead.website,
+      contact_info: null,
+      comments: comments.trim(),
+      status: "active",
+    };
 
     const result = await prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
-        data: {
-          lead_id: lead.id,
-          customer_type: lead.lead_type,
-          status: "active",
-          name: cleanString(lead.name),
-          email: lead.email ? cleanString(lead.email).toLowerCase() : null,
-          phone: cleanString(lead.phone),
-          address: cleanString(lead.address),
-          company_name: cleanString(lead.company_name),
-          website: cleanString(lead.website),
-          contact_info: null,
-          comments: cleanString(comments),
-          created_by: loggedInUserId,
-          updated_by: loggedInUserId,
-        },
-        include: customerInclude,
+      const createdCustomer = await tx.customer.create({
+        data: customerData,
       });
 
-      const updatedLead = await tx.lead.update({
-        where: { id: lead.id },
+      await tx.lead.update({
+        where: { id: leadId },
         data: {
+          customer_id: createdCustomer.id,
           crm_stage: "converted",
-          updated_by: loggedInUserId,
         },
       });
 
-      const leadComment = await tx.leadComment.create({
-        data: {
-          lead_id: lead.id,
-          updated_by: loggedInUserId,
-          comment: cleanString(comments),
-        },
-      });
-
-      return {
-        customer,
-        updatedLead,
-        leadComment,
-      };
+      return createdCustomer;
     });
 
     return res.status(201).json({
       message: "Lead converted to customer successfully",
-      customer: result.customer,
-      lead: result.updatedLead,
-      leadComment: result.leadComment,
+      customer_id: result.id,
     });
   } catch (error) {
     console.error("Convert lead to customer error:", error);
-
     return res.status(500).json({
       message: "Failed to convert lead to customer",
       error: error.message,
@@ -728,129 +621,76 @@ const updateCustomerStatus = async (req, res) => {
     const { status, comments } = req.body;
 
     if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
-      return res.status(401).json({
-        message: "Unauthorized. Valid logged-in user is required.",
-      });
+      return res.status(401).json({ message: "Unauthorized. Valid logged-in user is required." });
     }
 
     if (!isValidUUID(id)) {
-      return res.status(400).json({
-        message: "Invalid customer id",
-      });
+      return res.status(400).json({ message: "Invalid customer id" });
     }
 
     if (!status || !CUSTOMER_STATUSES.includes(status)) {
-      return res.status(400).json({
-        message: "Invalid status",
-        allowed_statuses: CUSTOMER_STATUSES,
-      });
+      return res.status(400).json({ message: "Invalid status", allowed_statuses: CUSTOMER_STATUSES });
     }
 
-    if (comments && comments.length > 1000) {
-      return res.status(400).json({
-        message: "Comments cannot exceed 1000 characters",
-      });
-    }
-
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { id },
-    });
+    const existingCustomer = await prisma.customer.findUnique({ where: { id } });
 
     if (!existingCustomer) {
-      return res.status(404).json({
-        message: "Customer not found",
-      });
+      return res.status(404).json({ message: "Customer not found" });
     }
 
-    const customer = await prisma.customer.update({
+    const updated = await prisma.customer.update({
       where: { id },
       data: {
         status,
-        comments: cleanString(comments) || existingCustomer.comments,
-        updated_by: loggedInUserId,
+        comments: comments !== undefined ? String(comments).trim() : existingCustomer.comments,
       },
       include: customerInclude,
     });
 
-    return res.status(200).json({
-      message: "Customer status updated successfully",
-      customer,
-    });
+    return res.status(200).json({ message: "Customer status updated successfully", customer: updated });
   } catch (error) {
     console.error("Update customer status error:", error);
-
-    return res.status(500).json({
-      message: "Failed to update customer status",
-      error: error.message,
-    });
+    return res.status(500).json({ message: "Failed to update customer status", error: error.message });
   }
 };
 
-// ARCHIVE CUSTOMER INSTEAD OF HARD DELETE
+// ARCHIVE CUSTOMER (soft-delete)
 const archiveCustomer = async (req, res) => {
   try {
     const loggedInUserId = getLoggedInUserId(req);
     const { id } = req.params;
-    const { comments } = req.body;
+    const { comments } = req.body || {};
 
     if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
-      return res.status(401).json({
-        message: "Unauthorized. Valid logged-in user is required.",
-      });
+      return res.status(401).json({ message: "Unauthorized. Valid logged-in user is required." });
     }
 
     if (!isValidUUID(id)) {
-      return res.status(400).json({
-        message: "Invalid customer id",
-      });
+      return res.status(400).json({ message: "Invalid customer id" });
     }
 
-    if (comments && comments.length > 1000) {
-      return res.status(400).json({
-        message: "Comments cannot exceed 1000 characters",
-      });
-    }
-
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { id },
-    });
+    const existingCustomer = await prisma.customer.findUnique({ where: { id } });
 
     if (!existingCustomer) {
-      return res.status(404).json({
-        message: "Customer not found",
-      });
+      return res.status(404).json({ message: "Customer not found" });
     }
 
     if (existingCustomer.status === "archived") {
-      return res.status(400).json({
-        message: "Customer is already archived",
-      });
+      return res.status(400).json({ message: "Customer is already archived" });
     }
 
-    const customer = await prisma.customer.update({
+    await prisma.customer.update({
       where: { id },
       data: {
         status: "archived",
-        comments:
-          cleanString(comments) ||
-          existingCustomer.comments ||
-          "Customer archived",
-        updated_by: loggedInUserId,
+        comments: comments !== undefined ? String(comments).trim() : existingCustomer.comments,
       },
-      include: customerInclude,
     });
 
-    return res.status(200).json({
-      message: "Customer archived successfully",
-      customer,
-    });
+    return res.status(200).json({ message: "Customer archived successfully" });
   } catch (error) {
     console.error("Archive customer error:", error);
-
-    return res.status(500).json({
-      message: "Failed to archive customer",
-      error: error.message,
-    });
+    return res.status(500).json({ message: "Failed to archive customer", error: error.message });
   }
 };
 

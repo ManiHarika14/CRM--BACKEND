@@ -1,237 +1,420 @@
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
-  user_id           String        @id @map("id") @default(uuid()) @db.Uuid
-  name              String
-  email             String        @unique
-  password_hash     String
-  role              String?
-  status            String        @default("active")
-  created_at        DateTime      @default(now())
-  updated_at        DateTime      @updatedAt
-  createdActivities Activity[]    @relation("ActivityCreatedBy")
-  authLogs          AuthLog[]
-  createdCustomers  Customer[]    @relation("CustomerCreatedBy")
-  updatedCustomers  Customer[]    @relation("CustomerUpdatedBy")
-  createdDeals      Deal[]        @relation("DealCreatedBy")
-  updatedDeals      Deal[]        @relation("DealUpdatedBy")
-  leadComments      LeadComment[]
-  assignedLeads     Lead[]        @relation("LeadAssignedUser")
-  createdLeads      Lead[]        @relation("LeadCreatedBy")
-  updatedLeads      Lead[]        @relation("LeadUpdatedBy")
-  createdNotes      Note[]        @relation("NoteCreatedBy")
-  updatedNotes      Note[]        @relation("NoteUpdatedBy")
-  assignedTasks     Task[]        @relation("TaskAssignedUser")
-  createdTasks      Task[]        @relation("TaskCreatedBy")
-  updatedTasks      Task[]        @relation("TaskUpdatedBy")
+  i_id                   Int                      @unique @default(autoincrement())
+  user_id                String                   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  name                   String                   @db.VarChar(100)
+  email                  String                   @unique @db.VarChar(150)
+  password_hash          String
+  role                   String                   @db.VarChar(20)
+  status                 Int                      @default(1)
+  authLogs               AuthLog[]
+  crm1_deals_log         crm1_deals_log[]
+  crm1_lead_comments_log crm1_lead_comments_log[]
+  crm1_leads             Lead[]
+  crm1_leads_log         crm1_leads_log[]
+  crm1_notes_log         crm1_notes_log[]
+  crm1_tasks             Task[]
+  crm1_tasks_log         crm1_tasks_log[]
+  crm1_users_log         crm1_users_log[]
 
   @@map("crm1_users")
 }
 
 model Lead {
-  id                  String        @id @default(uuid()) @db.Uuid
+  i_id                Int              @default(autoincrement())
+  id                  String           @id @default(uuid()) @db.Uuid
   source              String?
   source_url          String?
-  extraction_date     DateTime?
-  lead_type           String
-  name                String?
-  email               String?
-  phone               String?
-  address             String?
-  company_name        String?
-  website             String?
-  verification_status String        @default("new")
+  extraction_date     DateTime?        @default(now()) @db.Timestamp(6)
+  customer_id         String?          @db.Uuid
+  verification_status String?
   confidence          Float?
-  crm_stage           String        @default("new")
-  assigned_to         String?       @db.Uuid
-  created_by          String?       @db.Uuid
-  created_at          DateTime      @default(now())
-  updated_at          DateTime      @updatedAt
-  updated_by          String?       @db.Uuid
+  crm_stage           String?
+  user_id             String?          @db.Uuid
   activities          Activity[]
-  customer            Customer?
   comments            LeadComment[]
-  assignedUser        User?         @relation("LeadAssignedUser", fields: [assigned_to], references: [user_id])
-  createdBy           User?         @relation("LeadCreatedBy", fields: [created_by], references: [user_id])
-  updatedBy           User?         @relation("LeadUpdatedBy", fields: [updated_by], references: [user_id])
+  crm1_customers      Customer?        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  crm1_users          User?            @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  crm1_leads_log      crm1_leads_log[]
 
   @@map("crm1_leads")
 }
 
 model LeadComment {
-  id         String   @id @default(uuid()) @db.Uuid
-  lead_id    String   @db.Uuid
-  updated_by String   @db.Uuid
-  comment    String
-  created_at DateTime @default(now())
-  lead       Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
-  updatedBy  User     @relation(fields: [updated_by], references: [user_id])
+  i_id                   Int                      @unique @default(autoincrement())
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id                String                   @db.Uuid
+  comment                String
+  lead                   Lead                     @relation(fields: [lead_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
+  crm1_lead_comments_log crm1_lead_comments_log[]
 
   @@map("crm1_lead_comments")
 }
 
 model Customer {
-  id            String     @id @default(uuid()) @db.Uuid
-  lead_id       String?    @unique @db.Uuid
-  customer_type String?
-  name          String?
-  email         String?
-  phone         String?
-  address       String?
-  company_name  String?
-  website       String?
-  contact_info  String?
-  comments      String?
-  created_by    String?    @db.Uuid
-  updated_by    String?    @db.Uuid
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @updatedAt
-  status        String     @default("active")
-  activities    Activity[]
-  createdBy     User?      @relation("CustomerCreatedBy", fields: [created_by], references: [user_id])
-  lead          Lead?      @relation(fields: [lead_id], references: [id])
-  updatedBy     User?      @relation("CustomerUpdatedBy", fields: [updated_by], references: [user_id])
-  deals         Deal[]
-  notes         Note[]
-  tasks         Task[]
+  i_id                     Int                        @default(autoincrement())
+  id                       String                     @id @default(uuid()) @db.Uuid
+  customer_type            String?
+  name                     String?
+  email                    String?
+  phone                    String?
+  address                  String?
+  company_name             String?
+  website                  String?
+  contact_info             String?
+  status                   Int                        @default(1)
+  activities               Activity[]
+  crm1_customer_properties crm1_customer_properties[] @ignore
+  deals                    Deal[]
+  crm1_leads               Lead[]
+  notes                    Note[]
+  tasks                    Task[]
 
   @@map("crm1_customers")
 }
 
 model Deal {
-  id          String     @id @default(uuid()) @db.Uuid
-  customer_id String     @db.Uuid
-  offer       String
-  status      String     @default("new")
-  comment     String?
-  created_by  String?    @db.Uuid
-  updated_by  String?    @db.Uuid
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @updatedAt
-  activities  Activity[]
-  createdBy   User?      @relation("DealCreatedBy", fields: [created_by], references: [user_id])
-  customer    Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  updatedBy   User?      @relation("DealUpdatedBy", fields: [updated_by], references: [user_id])
-  notes       Note[]
-  tasks       Task[]
+  i_id           Int              @unique @default(autoincrement())
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id    String           @db.Uuid
+  offer          String?
+  status         Int?             @default(1)
+  comment        String?
+  activities     Activity[]
+  customer       Customer         @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
+  crm1_deals_log crm1_deals_log[]
+  notes          Note[]
+  tasks          Task[]
 
   @@map("crm1_deals")
 }
 
 model Task {
-  id           String     @id @default(uuid()) @db.Uuid
-  customer_id  String     @db.Uuid
-  deal_id      String?    @db.Uuid
-  assigned_to  String     @db.Uuid
-  title        String
-  description  String?
-  status       String     @default("pending")
-  priority     String     @default("medium")
-  due_date     DateTime?
-  comment      String?
-  created_by   String?    @db.Uuid
-  updated_by   String?    @db.Uuid
-  created_at   DateTime   @default(now())
-  updated_at   DateTime   @updatedAt
-  activities   Activity[]
-  notes        Note[]
-  assignedUser User       @relation("TaskAssignedUser", fields: [assigned_to], references: [user_id])
-  createdBy    User?      @relation("TaskCreatedBy", fields: [created_by], references: [user_id])
-  customer     Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  deal         Deal?      @relation(fields: [deal_id], references: [id])
-  updatedBy    User?      @relation("TaskUpdatedBy", fields: [updated_by], references: [user_id])
+  i_id           Int              @default(autoincrement())
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id    String?          @db.Uuid
+  deal_id        String?          @db.Uuid
+  assigner_to    String?          @db.Uuid
+  title          String
+  description    String?
+  status         Int?             @default(1)
+  priority       Int?             @default(1)
+  due_date       DateTime?        @db.Timestamp(6)
+  comment        String?
+  activities     Activity[]
+  notes          Note[]
+  crm1_users     User?            @relation(fields: [assigner_to], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assigner")
+  customer       Customer?        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
+  deal           Deal?            @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
+  crm1_tasks_log crm1_tasks_log[]
 
   @@map("crm1_tasks")
 }
 
 model Note {
-  id          String     @id @default(uuid()) @db.Uuid
-  customer_id String     @db.Uuid
-  deal_id     String?    @db.Uuid
-  task_id     String?    @db.Uuid
-  note        String
-  created_by  String?    @db.Uuid
-  updated_by  String?    @db.Uuid
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @updatedAt
-  activities  Activity[]
-  createdBy   User?      @relation("NoteCreatedBy", fields: [created_by], references: [user_id])
-  customer    Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  deal        Deal?      @relation(fields: [deal_id], references: [id])
-  task        Task?      @relation(fields: [task_id], references: [id])
-  updatedBy   User?      @relation("NoteUpdatedBy", fields: [updated_by], references: [user_id])
+  i_id           Int              @unique @default(autoincrement())
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id    String?          @db.Uuid
+  deal_id        String?          @db.Uuid
+  task_id        String?          @db.Uuid
+  note           String
+  activities     Activity[]
+  customer       Customer?        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
+  deal           Deal?            @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
+  task           Task?            @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
+  crm1_notes_log crm1_notes_log[]
 
   @@map("crm1_notes")
 }
 
 model Activity {
-  id          String    @id @default(uuid()) @db.Uuid
-  entity_type String
-  entity_id   String    @db.Uuid
-  action      String
+  i_id        Int       @unique @default(autoincrement())
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type String?   @db.VarChar(50)
+  entity_id   String?   @db.Uuid
+  action      String?   @db.VarChar(100)
   description String?
   lead_id     String?   @db.Uuid
   customer_id String?   @db.Uuid
   deal_id     String?   @db.Uuid
   task_id     String?   @db.Uuid
   note_id     String?   @db.Uuid
-  created_by  String?   @db.Uuid
-  created_at  DateTime  @default(now())
-  createdBy   User?     @relation("ActivityCreatedBy", fields: [created_by], references: [user_id])
-  customer    Customer? @relation(fields: [customer_id], references: [id])
-  deal        Deal?     @relation(fields: [deal_id], references: [id])
-  lead        Lead?     @relation(fields: [lead_id], references: [id])
-  note        Note?     @relation(fields: [note_id], references: [id])
-  task        Task?     @relation(fields: [task_id], references: [id])
+  customer    Customer? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
+  deal        Deal?     @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
+  lead        Lead?     @relation(fields: [lead_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
+  note        Note?     @relation(fields: [note_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_note")
+  task        Task?     @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
 
   @@map("crm1_activities")
 }
 
 model AuthLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  user_id     String?  @db.Uuid
+  i_id        Int       @unique @default(autoincrement())
+  user_id     String    @db.Uuid
+  log_type_id Int
+  date_time   DateTime? @default(now()) @db.Timestamp(6)
+  user        User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@map("crm1_auth_logs")
+}
+
+// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model crm1_customer_properties {
+  i_id           Int       @unique @default(autoincrement())
+  id             String?   @db.Uuid
+  email          String?
+  phone          String?
+  address        String?
+  company_name   String?
+  website        String?
+  contact_info   String?
+  crm1_customers Customer? @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model crm1_deals_log {
+  i_id        Int       @unique @default(autoincrement())
+  id          String    @db.Uuid
+  user_id     String    @db.Uuid
+  log_type_id Int
+  date_time   DateTime? @default(now()) @db.Timestamp(6)
+  crm1_deals  Deal      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
+  crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+}
+
+model crm1_lead_comments_log {
+  i_id               Int         @unique @default(autoincrement())
+  id                 String      @db.Uuid
+  user_id            String      @db.Uuid
+  date_time          DateTime?   @default(now()) @db.Timestamp(6)
+  crm1_lead_comments LeadComment @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead_comment")
+  crm1_users         User        @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+}
+
+model crm1_leads_log {
+  i_id        Int       @unique @default(autoincrement())
+  id          String    @db.Uuid
+  user_id     String    @db.Uuid
+  log_type_id Int
+  date_time   DateTime? @default(now()) @db.Timestamp(6)
+  crm1_leads  Lead      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
+  crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+}
+
+model crm1_notes_log {
+  i_id        Int       @unique @default(autoincrement())
+  id          String    @db.Uuid
+  user_id     String    @db.Uuid
+  log_type_id Int
+  date_time   DateTime? @default(now()) @db.Timestamp(6)
+  crm1_notes  Note      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_note")
+  crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+}
+
+model crm1_tasks_log {
+  i_id        Int       @unique @default(autoincrement())
+  id          String    @db.Uuid
+  user_id     String    @db.Uuid
+  log_type_id Int
+  date_time   DateTime? @default(now()) @db.Timestamp(6)
+  crm1_tasks  Task      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
+  crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+}
+
+model crm1_users_log {
+  i_id        Int       @id @default(autoincrement())
+  id          String?   @db.Uuid
+  log_type_id Int?
+  date_time   DateTime? @default(now()) @db.Timestamp(6)
+  crm1_users  User?     @relation(fields: [id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model crm_activites {
+  id            String         @id(map: "activities_pkey") @db.Uuid
+  entity_type   String
+  entity_id     String         @db.Uuid
+  action        String
+  description   String?
+  lead_id       String?        @db.Uuid
+  customer_id   String?        @db.Uuid
+  deal_id       String?        @db.Uuid
+  task_id       String?        @db.Uuid
+  note_id       String?        @db.Uuid
+  created_by    String?        @db.Uuid
+  created_at    DateTime       @default(now())
+  crm_users     crm_users?     @relation(fields: [created_by], references: [user_id], map: "activities_created_by_fkey")
+  crm_customers crm_customers? @relation(fields: [customer_id], references: [id], map: "activities_customer_id_fkey")
+  crm_deals     crm_deals?     @relation(fields: [deal_id], references: [id], map: "activities_deal_id_fkey")
+  crm_leads     crm_leads?     @relation(fields: [lead_id], references: [id], map: "activities_lead_id_fkey")
+  crm_notes     crm_notes?     @relation(fields: [note_id], references: [id], map: "activities_note_id_fkey")
+  crm_tasks     crm_tasks?     @relation(fields: [task_id], references: [id], map: "activities_task_id_fkey")
+}
+
+model crm_auth_logs {
+  id          String     @id(map: "auth_logs_pkey") @db.Uuid
+  user_id     String?    @db.Uuid
   email       String?
   action      String
   status      String
   description String?
   ip_address  String?
   user_agent  String?
-  created_at  DateTime @default(now())
-  user        User?    @relation(fields: [user_id], references: [user_id])
-
-  @@map("crm1_auth_logs")
+  created_at  DateTime   @default(now())
+  crm_users   crm_users? @relation(fields: [user_id], references: [user_id], map: "auth_logs_user_id_fkey")
 }
 
-model industry_data {
-  i_id      Int     @id @default(autoincrement())
-  id        String  @db.Uuid
-  file_name String? @db.VarChar(255)
-  json_data Json?
+model crm_customers {
+  id                                            String          @id(map: "customers_pkey") @db.Uuid
+  lead_id                                       String?         @unique(map: "customers_lead_id_key") @db.Uuid
+  customer_type                                 String?
+  name                                          String?
+  email                                         String?
+  phone                                         String?
+  address                                       String?
+  company_name                                  String?
+  website                                       String?
+  contact_info                                  String?
+  comments                                      String?
+  created_by                                    String?         @db.Uuid
+  updated_by                                    String?         @db.Uuid
+  created_at                                    DateTime        @default(now())
+  updated_at                                    DateTime
+  status                                        String          @default("active")
+  crm_activites                                 crm_activites[]
+  crm_users_crm_customers_created_byTocrm_users crm_users?      @relation("crm_customers_created_byTocrm_users", fields: [created_by], references: [user_id], map: "customers_created_by_fkey")
+  crm_leads                                     crm_leads?      @relation(fields: [lead_id], references: [id], map: "customers_lead_id_fkey")
+  crm_users_crm_customers_updated_byTocrm_users crm_users?      @relation("crm_customers_updated_byTocrm_users", fields: [updated_by], references: [user_id], map: "customers_updated_by_fkey")
+  crm_deals                                     crm_deals[]
+  crm_notes                                     crm_notes[]
+  crm_tasks                                     crm_tasks[]
 }
 
-model menu_data {
-  i_id           String           @id
-  id             Int              @unique
-  name           String
-  parentId       Boolean
-  shortName      String
-  title          String
-  icon           String
-  path           String
-  user_wise_menu user_wise_menu[]
+model crm_deals {
+  id                                        String          @id(map: "deals_pkey") @db.Uuid
+  customer_id                               String          @db.Uuid
+  offer                                     String
+  status                                    String          @default("new")
+  comment                                   String?
+  created_by                                String?         @db.Uuid
+  updated_by                                String?         @db.Uuid
+  created_at                                DateTime        @default(now())
+  updated_at                                DateTime
+  crm_activites                             crm_activites[]
+  crm_users_crm_deals_created_byTocrm_users crm_users?      @relation("crm_deals_created_byTocrm_users", fields: [created_by], references: [user_id], map: "deals_created_by_fkey")
+  crm_customers                             crm_customers   @relation(fields: [customer_id], references: [id], onDelete: Cascade, map: "deals_customer_id_fkey")
+  crm_users_crm_deals_updated_byTocrm_users crm_users?      @relation("crm_deals_updated_byTocrm_users", fields: [updated_by], references: [user_id], map: "deals_updated_by_fkey")
+  crm_notes                                 crm_notes[]
+  crm_tasks                                 crm_tasks[]
 }
 
-model user_wise_menu {
-  i_id      String    @id
-  userId    Int
-  menuId    Int
-  menu_data menu_data @relation(fields: [menuId], references: [id])
+model crm_lead_comments {
+  id         String    @id(map: "lead_comments_pkey") @db.Uuid
+  lead_id    String    @db.Uuid
+  updated_by String    @db.Uuid
+  comment    String
+  created_at DateTime  @default(now())
+  crm_leads  crm_leads @relation(fields: [lead_id], references: [id], onDelete: Cascade, map: "lead_comments_lead_id_fkey")
+  crm_users  crm_users @relation(fields: [updated_by], references: [user_id], map: "lead_comments_updated_by_fkey")
+}
+
+model crm_leads {
+  id                                         String              @id(map: "leads_pkey") @db.Uuid
+  source                                     String?
+  source_url                                 String?
+  extraction_date                            DateTime?
+  lead_type                                  String
+  name                                       String?
+  email                                      String?
+  phone                                      String?
+  address                                    String?
+  company_name                               String?
+  website                                    String?
+  verification_status                        String              @default("new")
+  confidence                                 Float?
+  crm_stage                                  String              @default("new")
+  assigned_to                                String?             @db.Uuid
+  created_by                                 String?             @db.Uuid
+  created_at                                 DateTime            @default(now())
+  updated_at                                 DateTime
+  updated_by                                 String?             @db.Uuid
+  crm_activites                              crm_activites[]
+  crm_customers                              crm_customers?
+  crm_lead_comments                          crm_lead_comments[]
+  crm_users_crm_leads_assigned_toTocrm_users crm_users?          @relation("crm_leads_assigned_toTocrm_users", fields: [assigned_to], references: [user_id], map: "leads_assigned_to_fkey")
+  crm_users_crm_leads_created_byTocrm_users  crm_users?          @relation("crm_leads_created_byTocrm_users", fields: [created_by], references: [user_id], map: "leads_created_by_fkey")
+  crm_users_crm_leads_updated_byTocrm_users  crm_users?          @relation("crm_leads_updated_byTocrm_users", fields: [updated_by], references: [user_id], map: "leads_updated_by_fkey")
+}
+
+model crm_notes {
+  id                                        String          @id(map: "notes_pkey") @db.Uuid
+  customer_id                               String          @db.Uuid
+  deal_id                                   String?         @db.Uuid
+  task_id                                   String?         @db.Uuid
+  note                                      String
+  created_by                                String?         @db.Uuid
+  updated_by                                String?         @db.Uuid
+  created_at                                DateTime        @default(now())
+  updated_at                                DateTime
+  crm_activites                             crm_activites[]
+  crm_users_crm_notes_created_byTocrm_users crm_users?      @relation("crm_notes_created_byTocrm_users", fields: [created_by], references: [user_id], map: "notes_created_by_fkey")
+  crm_customers                             crm_customers   @relation(fields: [customer_id], references: [id], onDelete: Cascade, map: "notes_customer_id_fkey")
+  crm_deals                                 crm_deals?      @relation(fields: [deal_id], references: [id], map: "notes_deal_id_fkey")
+  crm_tasks                                 crm_tasks?      @relation(fields: [task_id], references: [id], map: "notes_task_id_fkey")
+  crm_users_crm_notes_updated_byTocrm_users crm_users?      @relation("crm_notes_updated_byTocrm_users", fields: [updated_by], references: [user_id], map: "notes_updated_by_fkey")
+}
+
+model crm_tasks {
+  id                                         String          @id(map: "tasks_pkey") @db.Uuid
+  customer_id                                String          @db.Uuid
+  deal_id                                    String?         @db.Uuid
+  assigned_to                                String          @db.Uuid
+  title                                      String
+  description                                String?
+  status                                     String          @default("pending")
+  priority                                   String          @default("medium")
+  due_date                                   DateTime?
+  comment                                    String?
+  created_by                                 String?         @db.Uuid
+  updated_by                                 String?         @db.Uuid
+  created_at                                 DateTime        @default(now())
+  updated_at                                 DateTime
+  crm_activites                              crm_activites[]
+  crm_notes                                  crm_notes[]
+  crm_users_crm_tasks_assigned_toTocrm_users crm_users       @relation("crm_tasks_assigned_toTocrm_users", fields: [assigned_to], references: [user_id], map: "tasks_assigned_to_fkey")
+  crm_users_crm_tasks_created_byTocrm_users  crm_users?      @relation("crm_tasks_created_byTocrm_users", fields: [created_by], references: [user_id], map: "tasks_created_by_fkey")
+  crm_customers                              crm_customers   @relation(fields: [customer_id], references: [id], onDelete: Cascade, map: "tasks_customer_id_fkey")
+  crm_deals                                  crm_deals?      @relation(fields: [deal_id], references: [id], map: "tasks_deal_id_fkey")
+  crm_users_crm_tasks_updated_byTocrm_users  crm_users?      @relation("crm_tasks_updated_byTocrm_users", fields: [updated_by], references: [user_id], map: "tasks_updated_by_fkey")
+}
+
+model crm_users {
+  user_id                                           String              @id(map: "users_pkey") @db.Uuid
+  name                                              String
+  email                                             String              @unique(map: "users_email_key")
+  password_hash                                     String
+  role                                              String?
+  status                                            String              @default("active")
+  created_at                                        DateTime            @default(now())
+  updated_at                                        DateTime
+  crm_activites                                     crm_activites[]
+  crm_auth_logs                                     crm_auth_logs[]
+  crm_customers_crm_customers_created_byTocrm_users crm_customers[]     @relation("crm_customers_created_byTocrm_users")
+  crm_customers_crm_customers_updated_byTocrm_users crm_customers[]     @relation("crm_customers_updated_byTocrm_users")
+  crm_deals_crm_deals_created_byTocrm_users         crm_deals[]         @relation("crm_deals_created_byTocrm_users")
+  crm_deals_crm_deals_updated_byTocrm_users         crm_deals[]         @relation("crm_deals_updated_byTocrm_users")
+  crm_lead_comments                                 crm_lead_comments[]
+  crm_leads_crm_leads_assigned_toTocrm_users        crm_leads[]         @relation("crm_leads_assigned_toTocrm_users")
+  crm_leads_crm_leads_created_byTocrm_users         crm_leads[]         @relation("crm_leads_created_byTocrm_users")
+  crm_leads_crm_leads_updated_byTocrm_users         crm_leads[]         @relation("crm_leads_updated_byTocrm_users")
+  crm_notes_crm_notes_created_byTocrm_users         crm_notes[]         @relation("crm_notes_created_byTocrm_users")
+  crm_notes_crm_notes_updated_byTocrm_users         crm_notes[]         @relation("crm_notes_updated_byTocrm_users")
+  crm_tasks_crm_tasks_assigned_toTocrm_users        crm_tasks[]         @relation("crm_tasks_assigned_toTocrm_users")
+  crm_tasks_crm_tasks_created_byTocrm_users         crm_tasks[]         @relation("crm_tasks_created_byTocrm_users")
+  crm_tasks_crm_tasks_updated_byTocrm_users         crm_tasks[]         @relation("crm_tasks_updated_byTocrm_users")
 }

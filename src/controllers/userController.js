@@ -51,8 +51,7 @@ const getUsers = async (req, res) => {
         email: true,
         role: true,
         status: true,
-        created_at: true,
-        updated_at: true,
+        // removed created_at/updated_at (not present on crm1_users)
       },
     });
 
@@ -108,7 +107,6 @@ const createUser = async (req, res) => {
         email: true,
         role: true,
         status: true,
-        created_at: true,
       },
     });
 
@@ -156,7 +154,6 @@ const updateUser = async (req, res) => {
         email: true,
         role: true,
         status: true,
-        updated_at: true,
       },
     });
 
