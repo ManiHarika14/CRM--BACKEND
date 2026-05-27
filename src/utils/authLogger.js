@@ -38,40 +38,39 @@ const getUserAgent = (req) => {
   return req.headers["user-agent"] || null;
 };
 
+// log_type_id mapping for crm1_auth_logs:
+const ACTION_TO_LOG_TYPE = {
+  login_success: 1,
+  login_failed: 2,
+  user_registered: 3,
+  account_inactive_login_attempt: 4,
+};
+
 const createAuthLog = async ({
   req,
   user_id,
-  email,
   action,
-  status,
-  description,
 }) => {
   try {
-    const cleanEmail = cleanString(email);
     const cleanAction = cleanString(action);
-    const cleanStatus = cleanString(status);
-    const cleanDescription = cleanString(description);
 
     if (!cleanAction) {
       console.error("Auth logging skipped: action is required");
       return null;
     }
 
-    if (!cleanStatus) {
-      console.error("Auth logging skipped: status is required");
+    if (!user_id || !isValidUUID(user_id)) {
+      // crm1_auth_logs requires a valid user_id (non-nullable FK)
+      console.error("Auth logging skipped: valid user_id is required");
       return null;
     }
 
+    const log_type_id = ACTION_TO_LOG_TYPE[cleanAction] ?? 0;
+
     const authLog = await prisma.authLog.create({
       data: {
-        user_id:
-          user_id && isValidUUID(user_id) ? String(user_id).trim() : null,
-        email: cleanEmail ? cleanEmail.toLowerCase() : null,
-        action: cleanAction,
-        status: cleanStatus,
-        description: cleanDescription,
-        ip_address: req ? getRequestIp(req) : null,
-        user_agent: req ? getUserAgent(req) : null,
+        user_id: String(user_id).trim(),
+        log_type_id,
       },
     });
 

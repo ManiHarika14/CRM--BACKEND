@@ -37,7 +37,7 @@ const protect = async (req, res, next) => {
       });
     }
 
-    if (user.status !== "active") {
+    if (user.status !== 1) {
       return res.status(403).json({
         success: false,
         message: "User account is not active",

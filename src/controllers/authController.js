@@ -48,10 +48,7 @@ const register = async (req, res) => {
     await createAuthLog({
       req,
       user_id: user.user_id,
-      email: user.email,
       action: "user_registered",
-      status: "success",
-      description: "User registered successfully",
     });
 
     return res.status(201).json({
@@ -87,10 +84,7 @@ const login = async (req, res) => {
       await createAuthLog({
         req,
         user_id: null,
-        email,
         action: "login_failed",
-        status: "failed",
-        description: "Login failed because user was not found",
       });
 
       return res.status(401).json({
@@ -99,14 +93,11 @@ const login = async (req, res) => {
       });
     }
 
-    if (user.status !== "active") {
+    if (user.status !== 1) {
       await createAuthLog({
         req,
         user_id: user.user_id,
-        email: user.email,
         action: "account_inactive_login_attempt",
-        status: "blocked",
-        description: "Login blocked because user account is not active",
       });
 
       return res.status(403).json({
@@ -124,10 +115,7 @@ const login = async (req, res) => {
       await createAuthLog({
         req,
         user_id: user.user_id,
-        email: user.email,
         action: "login_failed",
-        status: "failed",
-        description: "Login failed because password was incorrect",
       });
 
       return res.status(401).json({
@@ -141,10 +129,7 @@ const login = async (req, res) => {
     await createAuthLog({
       req,
       user_id: user.user_id,
-      email: user.email,
       action: "login_success",
-      status: "success",
-      description: "User logged in successfully",
     });
 
     return res.status(200).json({

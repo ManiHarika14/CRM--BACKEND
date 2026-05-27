@@ -23,45 +23,17 @@ const router = express.Router();
  *     AuthLog:
  *       type: object
  *       properties:
- *         id:
- *           type: string
- *           example: "a8b7c6d5-1234-4e9f-9b88-7c6d5e4f3a21"
+ *         i_id:
+ *           type: integer
+ *           example: 1
  *         user_id:
  *           type: string
- *           nullable: true
  *           example: "4698b086-50d8-48e7-bf32-b1347328e4d1"
- *         email:
- *           type: string
- *           nullable: true
- *           example: "test@example.com"
- *         action:
- *           type: string
- *           example: "login_success"
- *           enum:
- *             - user_registered
- *             - login_success
- *             - login_failed
- *             - account_inactive_login_attempt
- *         status:
- *           type: string
- *           example: "success"
- *           enum:
- *             - success
- *             - failed
- *             - blocked
- *         description:
- *           type: string
- *           nullable: true
- *           example: "User logged in successfully"
- *         ip_address:
- *           type: string
- *           nullable: true
- *           example: "::1"
- *         user_agent:
- *           type: string
- *           nullable: true
- *           example: "Mozilla/5.0"
- *         created_at:
+ *         log_type_id:
+ *           type: integer
+ *           example: 1
+ *           description: "1=login_success, 2=login_failed, 3=user_registered, 4=account_inactive_login_attempt"
+ *         date_time:
  *           type: string
  *           format: date-time
  */
@@ -87,29 +59,12 @@ const router = express.Router();
  *           type: string
  *         example: "4698b086-50d8-48e7-bf32-b1347328e4d1"
  *       - in: query
- *         name: email
+ *         name: log_type_id
  *         schema:
- *           type: string
- *         example: "test@example.com"
- *       - in: query
- *         name: action
- *         schema:
- *           type: string
- *           enum:
- *             - user_registered
- *             - login_success
- *             - login_failed
- *             - account_inactive_login_attempt
- *         example: "login_success"
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum:
- *             - success
- *             - failed
- *             - blocked
- *         example: "success"
+ *           type: integer
+ *           enum: [1, 2, 3, 4]
+ *         description: "1=login_success, 2=login_failed, 3=user_registered, 4=account_inactive_login_attempt"
+ *         example: 1
  *       - in: query
  *         name: page
  *         schema:
@@ -146,8 +101,8 @@ router.get("/", protect, getAuthLogs);
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *         example: "a8b7c6d5-1234-4e9f-9b88-7c6d5e4f3a21"
+ *           type: integer
+ *         example: 1
  *     responses:
  *       200:
  *         description: Auth log fetched successfully

@@ -1,16 +1,19 @@
 const prisma = require("../utils/prisma");
 const { createActivity } = require("../utils/activityLogger");
 
-const DEAL_STATUSES = [
-  "new",
-  "qualified",
-  "proposal",
-  "negotiation",
-  "won",
-  "lost",
-];
+const DEAL_STATUS_MAP = {
+  new: 1,
+  qualified: 2,
+  proposal: 3,
+  negotiation: 4,
+  won: 5,
+  lost: 6,
+};
 
-const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
+const DEAL_STATUS_LABELS = Object.keys(DEAL_STATUS_MAP);
+
+// Customer status 0 = inactive/blocked
+const BLOCKED_CUSTOMER_STATUS = 0;
 
 const isValidUUID = (value) => {
   const uuidRegex =
@@ -38,7 +41,6 @@ const dealInclude = {
       email: true,
       phone: true,
       company_name: true,
-      lead_id: true,
     },
   },
   notes: true,
@@ -85,14 +87,16 @@ const createDeal = async (req, res) => {
       });
     }
 
-    const dealStatus = status ? cleanString(status) : "new";
+    const dealStatusLabel = status ? cleanString(status) : "new";
 
-    if (!DEAL_STATUSES.includes(dealStatus)) {
+    if (!DEAL_STATUS_LABELS.includes(dealStatusLabel)) {
       return res.status(400).json({
         message: "Invalid deal status",
-        allowed_statuses: DEAL_STATUSES,
+        allowed_statuses: DEAL_STATUS_LABELS,
       });
     }
+
+    const dealStatusInt = DEAL_STATUS_MAP[dealStatusLabel];
 
     const customer = await prisma.customer.findUnique({
       where: {
@@ -106,9 +110,9 @@ const createDeal = async (req, res) => {
       });
     }
 
-    if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+    if (customer.status === BLOCKED_CUSTOMER_STATUS) {
       return res.status(400).json({
-        message: `Cannot create deal for ${customer.status} customer`,
+        message: "Cannot create deal for inactive customer",
       });
     }
 
@@ -116,7 +120,7 @@ const createDeal = async (req, res) => {
       data: {
         customer_id,
         offer: cleanOffer,
-        status: dealStatus,
+        status: dealStatusInt,
         comment: cleanComment,
       },
       include: dealInclude,
@@ -126,7 +130,7 @@ const createDeal = async (req, res) => {
       entity_type: "deal",
       entity_id: deal.id,
       action: "deal_created",
-      description: `Deal created with status ${deal.status}.`,
+      description: `Deal created with status ${dealStatusLabel}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
     });
@@ -172,14 +176,14 @@ const getDeals = async (req, res) => {
     if (status) {
       const cleanStatus = cleanString(status);
 
-      if (!DEAL_STATUSES.includes(cleanStatus)) {
+      if (!DEAL_STATUS_LABELS.includes(cleanStatus)) {
         return res.status(400).json({
           message: "Invalid deal status",
-          allowed_statuses: DEAL_STATUSES,
+          allowed_statuses: DEAL_STATUS_LABELS,
         });
       }
 
-      where.status = cleanStatus;
+      where.status = DEAL_STATUS_MAP[cleanStatus];
     }
 
     if (customer_id) {
@@ -356,14 +360,14 @@ const updateDeal = async (req, res) => {
     if (status !== undefined) {
       const cleanStatus = cleanString(status);
 
-      if (!DEAL_STATUSES.includes(cleanStatus)) {
+      if (!DEAL_STATUS_LABELS.includes(cleanStatus)) {
         return res.status(400).json({
           message: "Invalid deal status",
-          allowed_statuses: DEAL_STATUSES,
+          allowed_statuses: DEAL_STATUS_LABELS,
         });
       }
 
-      data.status = cleanStatus;
+      data.status = DEAL_STATUS_MAP[cleanStatus];
     }
 
     if (comment !== undefined) {
@@ -386,11 +390,15 @@ const updateDeal = async (req, res) => {
       include: dealInclude,
     });
 
+    const updatedStatusLabel = Object.keys(DEAL_STATUS_MAP).find(
+      (k) => DEAL_STATUS_MAP[k] === deal.status
+    ) ?? deal.status;
+
     await createActivity({
       entity_type: "deal",
       entity_id: deal.id,
       action: "deal_updated",
-      description: `Deal updated. Current status is ${deal.status}.`,
+      description: `Deal updated. Current status is ${updatedStatusLabel}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
     });
@@ -434,10 +442,10 @@ const updateDealStatus = async (req, res) => {
       });
     }
 
-    if (!DEAL_STATUSES.includes(cleanStatus)) {
+    if (!DEAL_STATUS_LABELS.includes(cleanStatus)) {
       return res.status(400).json({
         message: "Invalid deal status",
-        allowed_statuses: DEAL_STATUSES,
+        allowed_statuses: DEAL_STATUS_LABELS,
       });
     }
 
@@ -461,12 +469,17 @@ const updateDealStatus = async (req, res) => {
       });
     }
 
+    const prevStatusLabel =
+      Object.keys(DEAL_STATUS_MAP).find(
+        (k) => DEAL_STATUS_MAP[k] === existingDeal.status
+      ) ?? existingDeal.status;
+
     const deal = await prisma.deal.update({
       where: {
         id,
       },
       data: {
-        status: cleanStatus,
+        status: DEAL_STATUS_MAP[cleanStatus],
         comment: cleanComment ?? existingDeal.comment,
       },
       include: dealInclude,
@@ -476,7 +489,7 @@ const updateDealStatus = async (req, res) => {
       entity_type: "deal",
       entity_id: deal.id,
       action: "deal_status_updated",
-      description: `Deal status changed from ${existingDeal.status} to ${deal.status}.`,
+      description: `Deal status changed from ${prevStatusLabel} to ${cleanStatus}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
     });

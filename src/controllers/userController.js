@@ -3,12 +3,15 @@ const prisma = require("../utils/prisma");
 
 const getUsers = async (req, res) => {
   try {
-    const { status = "active", role, search } = req.query;
+    const { status, role, search } = req.query;
 
     const where = {};
 
-    if (status) {
-      where.status = status;
+    if (status !== undefined) {
+      // Accept numeric string ("0","1") or named ("active","inactive")
+      if (status === "active" || status === "1") where.status = 1;
+      else if (status === "inactive" || status === "0") where.status = 0;
+      else where.status = Number(status);
     }
 
     if (role) {
@@ -99,7 +102,7 @@ const createUser = async (req, res) => {
         email,
         password_hash,
         role: role || null,
-        status: status || "active",
+        status: status !== undefined ? Number(status) : 1,
       },
       select: {
         user_id: true,
@@ -189,7 +192,7 @@ const deleteUser = async (req, res) => {
     await prisma.user.update({
       where: { user_id },
       data: {
-        status: "inactive",
+        status: 0,
       },
     });
 

@@ -1,13 +1,7 @@
 const prisma = require("../utils/prisma");
 
-const AUTH_LOG_ACTIONS = [
-  "user_registered",
-  "login_success",
-  "login_failed",
-  "account_inactive_login_attempt",
-];
-
-const AUTH_LOG_STATUSES = ["success", "failed", "blocked"];
+// log_type_id mapping (must match authLogger.js)
+const LOG_TYPE_IDS = [1, 2, 3, 4];
 
 const isValidUUID = (value) => {
   if (!value) return false;
@@ -45,9 +39,7 @@ const getAuthLogs = async (req, res) => {
     const {
       search,
       user_id,
-      email,
-      action,
-      status,
+      log_type_id,
       page = 1,
       limit = 20,
     } = req.query;
@@ -83,82 +75,35 @@ const getAuthLogs = async (req, res) => {
       where.user_id = String(user_id).trim();
     }
 
-    if (email && cleanString(email)) {
-      where.email = {
-        contains: cleanString(email).toLowerCase(),
-        mode: "insensitive",
-      };
-    }
+    if (log_type_id !== undefined) {
+      const parsedLogType = Number(log_type_id);
 
-    if (action) {
-      const cleanAction = cleanString(action);
-
-      if (!AUTH_LOG_ACTIONS.includes(cleanAction)) {
+      if (!Number.isInteger(parsedLogType) || !LOG_TYPE_IDS.includes(parsedLogType)) {
         return res.status(400).json({
-          message: "Invalid auth log action",
-          allowed_actions: AUTH_LOG_ACTIONS,
+          message: "Invalid log_type_id",
+          allowed_log_type_ids: LOG_TYPE_IDS,
         });
       }
 
-      where.action = cleanAction;
+      where.log_type_id = parsedLogType;
     }
 
-    if (status) {
-      const cleanStatus = cleanString(status);
-
-      if (!AUTH_LOG_STATUSES.includes(cleanStatus)) {
-        return res.status(400).json({
-          message: "Invalid auth log status",
-          allowed_statuses: AUTH_LOG_STATUSES,
-        });
-      }
-
-      where.status = cleanStatus;
-    }
-
+    // search by joined user name or email
     if (search && cleanString(search)) {
       const cleanSearch = cleanString(search);
 
       where.OR = [
         {
-          email: {
-            contains: cleanSearch,
-            mode: "insensitive",
-          },
-        },
-        {
-          action: {
-            contains: cleanSearch,
-            mode: "insensitive",
-          },
-        },
-        {
-          status: {
-            contains: cleanSearch,
-            mode: "insensitive",
-          },
-        },
-        {
-          description: {
-            contains: cleanSearch,
-            mode: "insensitive",
-          },
-        },
-        {
-          ip_address: {
-            contains: cleanSearch,
-            mode: "insensitive",
-          },
-        },
-        {
-          user_agent: {
-            contains: cleanSearch,
-            mode: "insensitive",
+          user: {
+            name: {
+              contains: cleanSearch,
+              mode: "insensitive",
+            },
           },
         },
         {
           user: {
-            name: {
+            email: {
               contains: cleanSearch,
               mode: "insensitive",
             },
@@ -173,7 +118,7 @@ const getAuthLogs = async (req, res) => {
         where,
         include: authLogInclude,
         orderBy: {
-          created_at: "desc",
+          i_id: "desc",
         },
         skip: (pageNumber - 1) * limitNumber,
         take: limitNumber,
@@ -203,7 +148,9 @@ const getAuthLogById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!isValidUUID(id)) {
+    const parsedId = Number(id);
+
+    if (!Number.isInteger(parsedId) || parsedId < 1) {
       return res.status(400).json({
         message: "Invalid auth log id",
       });
@@ -211,7 +158,7 @@ const getAuthLogById = async (req, res) => {
 
     const authLog = await prisma.authLog.findUnique({
       where: {
-        id,
+        i_id: parsedId,
       },
       include: authLogInclude,
     });

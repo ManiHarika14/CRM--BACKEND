@@ -44,7 +44,7 @@ const createAdmin = async (req, res) => {
           email,
           password_hash: hashedPassword,
           role: "admin",
-          status: "active",
+          status: 1,
         },
       });
 
@@ -120,12 +120,12 @@ const updateAdmin = async (req, res) => {
     const updatedAdmin =
       await prisma.user.update({
         where: {
-          user_id: Number(id),
+          user_id: id,
         },
         data: {
           name,
           email,
-          status,
+          status: status !== undefined ? Number(status) : undefined,
         },
       });
 
@@ -159,7 +159,7 @@ const deleteAdmin = async (req, res) => {
 
     await prisma.user.delete({
       where: {
-        user_id: Number(id),
+        user_id: id,
       },
     });
 

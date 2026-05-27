@@ -23,13 +23,10 @@ const activityInclude = {
   lead: {
     select: {
       id: true,
-      lead_type: true,
-      name: true,
-      email: true,
-      phone: true,
-      company_name: true,
+      source: true,
       verification_status: true,
       crm_stage: true,
+      user_id: true,
     },
   },
   customer: {
@@ -41,7 +38,6 @@ const activityInclude = {
       email: true,
       phone: true,
       company_name: true,
-      lead_id: true,
     },
   },
   deal: {
@@ -72,14 +68,6 @@ const activityInclude = {
       note: true,
     },
   },
-  createdBy: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-    },
-  },
 };
 
 const getActivities = async (req, res) => {
@@ -94,7 +82,6 @@ const getActivities = async (req, res) => {
       deal_id,
       task_id,
       note_id,
-      created_by,
       page = 1,
       limit = 20,
     } = req.query;
@@ -197,16 +184,6 @@ const getActivities = async (req, res) => {
       where.note_id = String(note_id).trim();
     }
 
-    if (created_by) {
-      if (!isValidUUID(created_by)) {
-        return res.status(400).json({
-          message: "Invalid created_by user id",
-        });
-      }
-
-      where.created_by = String(created_by).trim();
-    }
-
     if (search && cleanString(search)) {
       const cleanSearch = cleanString(search);
 
@@ -238,7 +215,7 @@ const getActivities = async (req, res) => {
         where,
         include: activityInclude,
         orderBy: {
-          created_at: "desc",
+          i_id: "desc",
         },
         skip: (pageNumber - 1) * limitNumber,
         take: limitNumber,

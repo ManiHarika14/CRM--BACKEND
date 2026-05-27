@@ -1,10 +1,23 @@
 const prisma = require("../utils/prisma");
 const { createActivity } = require("../utils/activityLogger");
 
-const TASK_STATUSES = ["pending", "in_progress", "completed", "cancelled"];
-const TASK_PRIORITIES = ["low", "medium", "high", "urgent"];
+const TASK_STATUS_MAP = {
+  pending: 1,
+  in_progress: 2,
+  completed: 3,
+  cancelled: 4,
+};
+const TASK_STATUS_LABELS = Object.keys(TASK_STATUS_MAP);
 
-const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
+const TASK_PRIORITY_MAP = {
+  low: 1,
+  medium: 2,
+  high: 3,
+  urgent: 4,
+};
+const TASK_PRIORITY_LABELS = Object.keys(TASK_PRIORITY_MAP);
+
+const BLOCKED_CUSTOMER_STATUS = 0;
 
 const isValidUUID = (value) => {
   if (!value) return false;
@@ -47,7 +60,6 @@ const taskInclude = {
       email: true,
       phone: true,
       company_name: true,
-      lead_id: true,
     },
   },
   deal: {
@@ -58,7 +70,7 @@ const taskInclude = {
       status: true,
     },
   },
-  assignedUser: {
+  crm1_users: {
     select: {
       user_id: true,
       name: true,
@@ -67,7 +79,6 @@ const taskInclude = {
       status: true,
     },
   },
-  // removed createdBy/updatedBy includes
 };
 
 const createTask = async (req, res) => {
@@ -134,21 +145,21 @@ const createTask = async (req, res) => {
       });
     }
 
-    const taskStatus = status ? cleanString(status) : "pending";
+    const taskStatusLabel = status ? cleanString(status) : "pending";
 
-    if (!TASK_STATUSES.includes(taskStatus)) {
+    if (!TASK_STATUS_LABELS.includes(taskStatusLabel)) {
       return res.status(400).json({
         message: "Invalid task status",
-        allowed_statuses: TASK_STATUSES,
+        allowed_statuses: TASK_STATUS_LABELS,
       });
     }
 
-    const taskPriority = priority ? cleanString(priority) : "medium";
+    const taskPriorityLabel = priority ? cleanString(priority) : "medium";
 
-    if (!TASK_PRIORITIES.includes(taskPriority)) {
+    if (!TASK_PRIORITY_LABELS.includes(taskPriorityLabel)) {
       return res.status(400).json({
         message: "Invalid task priority",
-        allowed_priorities: TASK_PRIORITIES,
+        allowed_priorities: TASK_PRIORITY_LABELS,
       });
     }
 
@@ -165,9 +176,7 @@ const createTask = async (req, res) => {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: {
-        id: customer_id,
-      },
+      where: { id: customer_id },
     });
 
     if (!customer) {
@@ -176,16 +185,14 @@ const createTask = async (req, res) => {
       });
     }
 
-    if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+    if (customer.status === BLOCKED_CUSTOMER_STATUS) {
       return res.status(400).json({
-        message: `Cannot create task for ${customer.status} customer`,
+        message: "Cannot create task for inactive customer",
       });
     }
 
     const assignedUser = await prisma.user.findUnique({
-      where: {
-        user_id: assigned_to,
-      },
+      where: { user_id: assigned_to },
     });
 
     if (!assignedUser) {
@@ -194,7 +201,7 @@ const createTask = async (req, res) => {
       });
     }
 
-    if (assignedUser.status !== "active") {
+    if (assignedUser.status !== 1) {
       return res.status(400).json({
         message: "Assigned user must be active",
       });
@@ -202,9 +209,7 @@ const createTask = async (req, res) => {
 
     if (deal_id) {
       const deal = await prisma.deal.findUnique({
-        where: {
-          id: deal_id,
-        },
+        where: { id: deal_id },
       });
 
       if (!deal) {
@@ -224,11 +229,11 @@ const createTask = async (req, res) => {
       data: {
         customer_id,
         deal_id: deal_id || null,
-        assigned_to,
+        assigner_to: assigned_to,
         title: cleanTitle,
         description: cleanDescription,
-        status: taskStatus,
-        priority: taskPriority,
+        status: TASK_STATUS_MAP[taskStatusLabel],
+        priority: TASK_PRIORITY_MAP[taskPriorityLabel],
         due_date: due_date ? new Date(due_date) : null,
         comment: cleanComment,
       },
@@ -294,27 +299,27 @@ const getTasks = async (req, res) => {
     if (status) {
       const cleanStatus = cleanString(status);
 
-      if (!TASK_STATUSES.includes(cleanStatus)) {
+      if (!TASK_STATUS_LABELS.includes(cleanStatus)) {
         return res.status(400).json({
           message: "Invalid task status",
-          allowed_statuses: TASK_STATUSES,
+          allowed_statuses: TASK_STATUS_LABELS,
         });
       }
 
-      where.status = cleanStatus;
+      where.status = TASK_STATUS_MAP[cleanStatus];
     }
 
     if (priority) {
       const cleanPriority = cleanString(priority);
 
-      if (!TASK_PRIORITIES.includes(cleanPriority)) {
+      if (!TASK_PRIORITY_LABELS.includes(cleanPriority)) {
         return res.status(400).json({
           message: "Invalid task priority",
-          allowed_priorities: TASK_PRIORITIES,
+          allowed_priorities: TASK_PRIORITY_LABELS,
         });
       }
 
-      where.priority = cleanPriority;
+      where.priority = TASK_PRIORITY_MAP[cleanPriority];
     }
 
     if (customer_id) {
@@ -344,7 +349,7 @@ const getTasks = async (req, res) => {
         });
       }
 
-      where.assigned_to = assigned_to;
+      where.assigner_to = assigned_to;
     }
 
     if (search && cleanString(search)) {
@@ -525,9 +530,9 @@ const updateTask = async (req, res) => {
         });
       }
 
-      if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+      if (customer.status === BLOCKED_CUSTOMER_STATUS) {
         return res.status(400).json({
-          message: `Cannot assign task to ${customer.status} customer`,
+          message: "Cannot assign task to inactive customer",
         });
       }
 
@@ -553,13 +558,13 @@ const updateTask = async (req, res) => {
         });
       }
 
-      if (assignedUser.status !== "active") {
+      if (assignedUser.status !== 1) {
         return res.status(400).json({
           message: "Assigned user must be active",
         });
       }
 
-      data.assigned_to = assigned_to;
+      data.assigner_to = assigned_to;
     }
 
     if (deal_id !== undefined) {
@@ -627,27 +632,27 @@ const updateTask = async (req, res) => {
     if (status !== undefined) {
       const cleanStatus = cleanString(status);
 
-      if (!TASK_STATUSES.includes(cleanStatus)) {
+      if (!TASK_STATUS_LABELS.includes(cleanStatus)) {
         return res.status(400).json({
           message: "Invalid task status",
-          allowed_statuses: TASK_STATUSES,
+          allowed_statuses: TASK_STATUS_LABELS,
         });
       }
 
-      data.status = cleanStatus;
+      data.status = TASK_STATUS_MAP[cleanStatus];
     }
 
     if (priority !== undefined) {
       const cleanPriority = cleanString(priority);
 
-      if (!TASK_PRIORITIES.includes(cleanPriority)) {
+      if (!TASK_PRIORITY_LABELS.includes(cleanPriority)) {
         return res.status(400).json({
           message: "Invalid task priority",
-          allowed_priorities: TASK_PRIORITIES,
+          allowed_priorities: TASK_PRIORITY_LABELS,
         });
       }
 
-      data.priority = cleanPriority;
+      data.priority = TASK_PRIORITY_MAP[cleanPriority];
     }
 
     if (due_date !== undefined) {
@@ -732,10 +737,10 @@ const updateTaskStatus = async (req, res) => {
       });
     }
 
-    if (!TASK_STATUSES.includes(cleanStatus)) {
+    if (!TASK_STATUS_LABELS.includes(cleanStatus)) {
       return res.status(400).json({
         message: "Invalid task status",
-        allowed_statuses: TASK_STATUSES,
+        allowed_statuses: TASK_STATUS_LABELS,
       });
     }
 
@@ -748,9 +753,7 @@ const updateTaskStatus = async (req, res) => {
     }
 
     const existingTask = await prisma.task.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
     });
 
     if (!existingTask) {
@@ -759,12 +762,15 @@ const updateTaskStatus = async (req, res) => {
       });
     }
 
+    const prevStatusLabel =
+      Object.keys(TASK_STATUS_MAP).find(
+        (k) => TASK_STATUS_MAP[k] === existingTask.status
+      ) ?? existingTask.status;
+
     const task = await prisma.task.update({
-      where: {
-        id,
-      },
+      where: { id },
       data: {
-        status: cleanStatus,
+        status: TASK_STATUS_MAP[cleanStatus],
         comment: cleanComment ?? existingTask.comment,
       },
       include: taskInclude,
@@ -774,7 +780,7 @@ const updateTaskStatus = async (req, res) => {
       entity_type: "task",
       entity_id: task.id,
       action: "task_status_updated",
-      description: `Task status changed from ${existingTask.status} to ${task.status}.`,
+      description: `Task status changed from ${prevStatusLabel} to ${cleanStatus}.`,
       customer_id: task.customer_id,
       deal_id: task.deal_id,
       task_id: task.id,

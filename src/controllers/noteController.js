@@ -1,7 +1,7 @@
 const prisma = require("../utils/prisma");
 const { createActivity } = require("../utils/activityLogger");
 
-const BLOCKED_CUSTOMER_STATUSES = ["archived", "blacklisted"];
+const BLOCKED_CUSTOMER_STATUS = 0;
 
 const isValidUUID = (value) => {
   if (!value) return false;
@@ -41,7 +41,6 @@ const noteInclude = {
       email: true,
       phone: true,
       company_name: true,
-      lead_id: true,
     },
   },
   deal: {
@@ -121,9 +120,9 @@ const createNote = async (req, res) => {
       });
     }
 
-    if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+    if (customer.status === BLOCKED_CUSTOMER_STATUS) {
       return res.status(400).json({
-        message: `Cannot create note for ${customer.status} customer`,
+        message: "Cannot create note for inactive customer",
       });
     }
 
@@ -442,9 +441,9 @@ const updateNote = async (req, res) => {
         });
       }
 
-      if (BLOCKED_CUSTOMER_STATUSES.includes(customer.status)) {
+      if (customer.status === BLOCKED_CUSTOMER_STATUS) {
         return res.status(400).json({
-          message: `Cannot assign note to ${customer.status} customer`,
+          message: "Cannot assign note to inactive customer",
         });
       }
 

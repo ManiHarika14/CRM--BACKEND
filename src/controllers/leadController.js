@@ -32,12 +32,11 @@ const userSelect = {
 };
 
 const leadInclude = {
-  assignedUser: { select: userSelect },
+  crm1_users: { select: userSelect },
   comments: {
     orderBy: {
       i_id: "desc",
     },
-    // avoid updatedBy includes
   },
 };
 
@@ -72,7 +71,7 @@ const validateAssignedUser = async (assigned_to) => {
     return "Lead can only be assigned to an admin or super_admin user";
   }
 
-  if (user.status !== "active") {
+  if (user.status !== 1) {
     return "Lead cannot be assigned to an inactive user";
   }
 
@@ -276,33 +275,11 @@ const createLead = async (req, res) => {
       source,
       source_url,
       extraction_date,
-      lead_type,
-      name,
-      email,
-      phone,
-      address,
-      company_name,
-      website,
       verification_status,
       confidence,
       crm_stage,
       assigned_to,
     } = req.body;
-
-    if (!lead_type) {
-      return res.status(400).json({
-        success: false,
-        message: "lead_type is required",
-      });
-    }
-
-    if (!allowedLeadTypes.includes(lead_type)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid lead_type",
-        allowedLeadTypes,
-      });
-    }
 
     const assignmentError = await validateAssignedUser(assigned_to);
 
@@ -318,17 +295,10 @@ const createLead = async (req, res) => {
         source,
         source_url,
         extraction_date: extraction_date ? new Date(extraction_date) : null,
-        lead_type,
-        name,
-        email,
-        phone,
-        address,
-        company_name,
-        website,
         verification_status: verification_status || "new",
         confidence,
         crm_stage: crm_stage || "new",
-        assigned_to,
+        user_id: assigned_to,
       },
       include: leadInclude,
     });
@@ -337,7 +307,7 @@ const createLead = async (req, res) => {
       entity_type: "lead",
       entity_id: lead.id,
       action: "lead_created",
-      description: `Lead created: ${lead.name || lead.company_name || lead.email || lead.id}`,
+      description: `Lead created: ${lead.id}`,
       lead_id: lead.id,
     });
 
@@ -399,59 +369,14 @@ const importLeads = async (req, res) => {
       const rowNumber = index + 2;
       const mappedLead = mapImportRow(row);
 
-      if (!mappedLead.name && !mappedLead.company_name && !mappedLead.email) {
-        errors.push({
-          row: rowNumber,
-          reason: "At least one of name, company_name, or email is required",
-        });
-        return;
-      }
-
-      if (!mappedLead.email && !mappedLead.phone) {
-        errors.push({
-          row: rowNumber,
-          reason: "At least email or phone is required",
-        });
-        return;
-      }
-
-      if (mappedLead.email && !isValidEmail(mappedLead.email)) {
-        errors.push({
-          row: rowNumber,
-          reason: "Invalid email format",
-        });
-        return;
-      }
-
-      const duplicateKey = getDuplicateKey(mappedLead);
-
-      if (duplicateKey && seenKeys.has(duplicateKey)) {
-        errors.push({
-          row: rowNumber,
-          reason: "Duplicate lead inside uploaded file",
-        });
-        return;
-      }
-
-      if (duplicateKey) {
-        seenKeys.add(duplicateKey);
-      }
-
       validLeads.push({
         source: mappedLead.source || "import",
         source_url: mappedLead.source_url,
         extraction_date: mappedLead.extraction_date,
-        lead_type: mappedLead.lead_type,
-        name: mappedLead.name,
-        email: mappedLead.email,
-        phone: mappedLead.phone,
-        address: mappedLead.address,
-        company_name: mappedLead.company_name,
-        website: mappedLead.website,
         verification_status: mappedLead.verification_status,
         confidence: Number.isFinite(mappedLead.confidence) ? mappedLead.confidence : null,
         crm_stage: mappedLead.crm_stage,
-        assigned_to,
+        user_id: assigned_to,
       });
     });
 
@@ -467,39 +392,7 @@ const importLeads = async (req, res) => {
       });
     }
 
-    const emails = validLeads.map((lead) => lead.email).filter(Boolean);
-    const phones = validLeads.map((lead) => lead.phone).filter(Boolean);
-
-    const existingLeads = await prisma.lead.findMany({
-      where: {
-        OR: [
-          ...(emails.length ? [{ email: { in: emails } }] : []),
-          ...(phones.length ? [{ phone: { in: phones } }] : []),
-        ],
-      },
-      select: {
-        email: true,
-        phone: true,
-      },
-    });
-
-    const existingEmailSet = new Set(existingLeads.map((l) => l.email).filter(Boolean));
-    const existingPhoneSet = new Set(existingLeads.map((l) => l.phone).filter(Boolean));
-
-    const leadsToCreate = [];
-
-    validLeads.forEach((lead, index) => {
-      const rowNumber = index + 2;
-      if (lead.email && existingEmailSet.has(lead.email)) {
-        errors.push({ row: rowNumber, reason: "Email already exists in CRM" });
-        return;
-      }
-      if (lead.phone && existingPhoneSet.has(lead.phone)) {
-        errors.push({ row: rowNumber, reason: "Phone already exists in CRM" });
-        return;
-      }
-      leadsToCreate.push(lead);
-    });
+    const leadsToCreate = validLeads;
 
     let created = 0;
     const batches = chunkArray(leadsToCreate, 1000);
@@ -530,7 +423,7 @@ const importLeads = async (req, res) => {
             entity_type: "lead",
             entity_id: latestImportedLead.id,
             action: "leads_imported",
-            description: `Lead import completed. File: ${req.file.originalname}. Total rows: ${rows.length}. Created: ${created}. Failed/skipped: ${rows.length - created}.`,
+            description: `Lead import completed. File: ${req.file.originalname}. Created: ${created}. Total rows: ${rows.length}.`,
             lead_id: latestImportedLead.id,
           });
         }
@@ -575,22 +468,20 @@ const getLeads = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
     const where = {};
 
-    if (lead_type) where.lead_type = lead_type;
     if (verification_status) where.verification_status = verification_status;
     if (crm_stage) {
       where.crm_stage = crm_stage;
     } else if (include_converted !== "true") {
       where.crm_stage = { not: "converted" };
     }
-    if (assigned_to) where.assigned_to = assigned_to;
+    if (assigned_to) where.user_id = assigned_to;
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-        { phone: { contains: search, mode: "insensitive" } },
-        { company_name: { contains: search, mode: "insensitive" } },
-        { website: { contains: search, mode: "insensitive" } },
+        { source: { contains: search, mode: "insensitive" } },
+        { source_url: { contains: search, mode: "insensitive" } },
+        { verification_status: { contains: search, mode: "insensitive" } },
+        { crm_stage: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -671,27 +562,12 @@ const updateLead = async (req, res) => {
       source,
       source_url,
       extraction_date,
-      lead_type,
-      name,
-      email,
-      phone,
-      address,
-      company_name,
-      website,
       verification_status,
       confidence,
       crm_stage,
       assigned_to,
       comment,
     } = req.body;
-
-    if (lead_type && !allowedLeadTypes.includes(lead_type)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid lead_type",
-        allowedLeadTypes,
-      });
-    }
 
     if (
       verification_status &&
@@ -736,17 +612,10 @@ const updateLead = async (req, res) => {
         source,
         source_url,
         extraction_date: extraction_date ? new Date(extraction_date) : undefined,
-        lead_type,
-        name,
-        email,
-        phone,
-        address,
-        company_name,
-        website,
         verification_status,
         confidence,
         crm_stage,
-        assigned_to,
+        user_id: assigned_to,
       },
     });
 
@@ -764,7 +633,7 @@ const updateLead = async (req, res) => {
       entity_type: "lead",
       entity_id: updatedLead.id,
       action: "lead_updated",
-      description: `Lead updated: ${updatedLead.name || updatedLead.company_name || updatedLead.email || updatedLead.id}`,
+      description: `Lead updated: ${updatedLead.id}`,
       lead_id: updatedLead.id,
     });
 
@@ -817,7 +686,7 @@ const assignLead = async (req, res) => {
     await prisma.lead.update({
       where: { id },
       data: {
-        assigned_to,
+        user_id: assigned_to,
       },
     });
 
@@ -835,7 +704,7 @@ const assignLead = async (req, res) => {
       entity_type: "lead",
       entity_id: updatedLead.id,
       action: "lead_assigned",
-      description: `Lead assigned from ${lead.assigned_to || "unassigned"} to ${updatedLead.assigned_to}.`,
+      description: `Lead assigned from ${lead.user_id || "unassigned"} to ${updatedLead.user_id}.`,
       lead_id: updatedLead.id,
     });
 
@@ -1017,7 +886,7 @@ const deleteLead = async (req, res) => {
       entity_type: "lead",
       entity_id: lead.id,
       action: "lead_deleted",
-      description: `Lead deleted: ${lead.name || lead.company_name || lead.email || lead.id}`,
+      description: `Lead deleted: ${lead.id}`,
       lead_id: lead.id,
     });
 

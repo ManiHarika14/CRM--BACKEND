@@ -1,7 +1,10 @@
 const prisma = require("../utils/prisma");
 
 const CUSTOMER_TYPES = ["Customer", "Vendor", "BConsultant", "AlliedSP"];
-const CUSTOMER_STATUSES = ["active", "inactive", "blacklisted", "archived"];
+
+// crm1_customers.status is Int: 1=active, 0=inactive
+const CUSTOMER_STATUS_MAP = { active: 1, inactive: 0 };
+const CUSTOMER_STATUS_VALUES = Object.keys(CUSTOMER_STATUS_MAP);
 
 const LEAD_ALLOWED_VERIFICATION_STATUS = "verified";
 const LEAD_ALLOWED_CONVERSION_STAGE = "qualified";
@@ -103,9 +106,9 @@ const validateCustomerPayload = (body, mode = "create") => {
     );
   }
 
-  if (status && !CUSTOMER_STATUSES.includes(status)) {
+  if (status !== undefined && !CUSTOMER_STATUS_VALUES.includes(status)) {
     errors.push(
-      `Invalid status. Allowed values: ${CUSTOMER_STATUSES.join(", ")}`
+      `Invalid status. Allowed values: ${CUSTOMER_STATUS_VALUES.join(", ")}`
     );
   }
 
@@ -149,17 +152,12 @@ const validateCustomerPayload = (body, mode = "create") => {
     errors.push("Contact info cannot exceed 1000 characters");
   }
 
-  if (comments && comments.length > 1000) {
-    errors.push("Comments cannot exceed 1000 characters");
-  }
-
   return errors;
 };
 
 const buildCustomerData = (body) => {
   const data = {
     customer_type: cleanString(body.customer_type),
-    status: cleanString(body.status) || undefined,
     name: cleanString(body.name),
     email: body.email ? cleanString(body.email).toLowerCase() : null,
     phone: cleanString(body.phone),
@@ -167,8 +165,11 @@ const buildCustomerData = (body) => {
     company_name: cleanString(body.company_name),
     website: cleanString(body.website),
     contact_info: cleanString(body.contact_info),
-    comments: cleanString(body.comments),
   };
+
+  if (body.status !== undefined) {
+    data.status = CUSTOMER_STATUS_MAP[body.status] ?? 1;
+  }
 
   return data;
 };
@@ -277,10 +278,10 @@ const getCustomers = async (req, res) => {
       });
     }
 
-    if (status && !CUSTOMER_STATUSES.includes(status)) {
+    if (status !== undefined && !CUSTOMER_STATUS_VALUES.includes(status)) {
       return res.status(400).json({
         message: "Invalid status",
-        allowed_statuses: CUSTOMER_STATUSES,
+        allowed_statuses: CUSTOMER_STATUS_VALUES,
       });
     }
 
@@ -292,12 +293,8 @@ const getCustomers = async (req, res) => {
       where.customer_type = customer_type;
     }
 
-    if (status) {
-      where.status = status;
-    } else {
-      where.status = {
-        not: "archived",
-      };
+    if (status !== undefined) {
+      where.status = CUSTOMER_STATUS_MAP[status];
     }
 
     if (search && search.trim()) {
@@ -485,7 +482,6 @@ const convertLeadToCustomer = async (req, res) => {
   try {
     const loggedInUserId = getLoggedInUserId(req);
     const { leadId } = req.params;
-    const { comments } = req.body;
 
     if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
       return res.status(401).json({
@@ -499,24 +495,9 @@ const convertLeadToCustomer = async (req, res) => {
       });
     }
 
-    if (!comments || !comments.trim()) {
-      return res.status(400).json({
-        message: "Comment is required to convert lead to customer",
-      });
-    }
-
-    if (comments.length > 1000) {
-      return res.status(400).json({
-        message: "Comment cannot exceed 1000 characters",
-      });
-    }
-
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
-      include: {
-        customer: true,
-        assignedUser: true,
-      },
+      include: { crm1_customers: true },
     });
 
     if (!lead) {
@@ -525,63 +506,47 @@ const convertLeadToCustomer = async (req, res) => {
       });
     }
 
-    if (lead.customer) {
+    if (lead.crm1_customers) {
       return res.status(400).json({
-        message: "This lead is already converted to customer",
-        customer_id: lead.customer.id,
-      });
-    }
-
-    if (!CUSTOMER_TYPES.includes(lead.lead_type)) {
-      return res.status(400).json({
-        message: "Lead type cannot be converted to customer",
-        current_lead_type: lead.lead_type,
-        allowed_types: CUSTOMER_TYPES,
+        message: "This lead is already converted to a customer",
+        customer_id: lead.crm1_customers.id,
       });
     }
 
     if (BLOCKED_LEAD_STATUSES.includes(lead.verification_status)) {
       return res.status(400).json({
-        message:
-          "This lead cannot be converted because it is not interested or churned",
+        message: "This lead cannot be converted because it is not interested or churned",
         current_verification_status: lead.verification_status,
       });
     }
 
     if (lead.verification_status !== LEAD_ALLOWED_VERIFICATION_STATUS) {
       return res.status(400).json({
-        message: "Only verified leads can be converted to customer",
+        message: "Only verified leads can be converted to a customer",
         current_verification_status: lead.verification_status,
       });
     }
 
     if (lead.crm_stage !== LEAD_ALLOWED_CONVERSION_STAGE) {
       return res.status(400).json({
-        message:
-          "Lead cannot be converted. Only qualified leads can be converted, and lost leads are not eligible.",
+        message: "Only qualified leads can be converted. Lost leads are not eligible.",
         current_crm_stage: lead.crm_stage,
       });
     }
 
-    if (BLOCKED_LEAD_STAGES.includes(lead.crm_stage)) {
+    // New Lead has no name/email/phone fields — customer_type must come from request body
+    const { customer_type } = req.body;
+
+    if (!customer_type || !CUSTOMER_TYPES.includes(customer_type)) {
       return res.status(400).json({
-        message: "Lost leads cannot be converted to customer",
-        current_crm_stage: lead.crm_stage,
+        message: "customer_type is required for conversion",
+        allowed_types: CUSTOMER_TYPES,
       });
     }
 
-    // Build customer object from lead
     const customerData = {
-      customer_type: lead.lead_type,
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      address: lead.address,
-      company_name: lead.company_name,
-      website: lead.website,
-      contact_info: null,
-      comments: comments.trim(),
-      status: "active",
+      customer_type,
+      status: 1,
     };
 
     const result = await prisma.$transaction(async (tx) => {
@@ -628,8 +593,8 @@ const updateCustomerStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid customer id" });
     }
 
-    if (!status || !CUSTOMER_STATUSES.includes(status)) {
-      return res.status(400).json({ message: "Invalid status", allowed_statuses: CUSTOMER_STATUSES });
+    if (!status || !CUSTOMER_STATUS_VALUES.includes(status)) {
+      return res.status(400).json({ message: "Invalid status", allowed_statuses: CUSTOMER_STATUS_VALUES });
     }
 
     const existingCustomer = await prisma.customer.findUnique({ where: { id } });
@@ -641,8 +606,7 @@ const updateCustomerStatus = async (req, res) => {
     const updated = await prisma.customer.update({
       where: { id },
       data: {
-        status,
-        comments: comments !== undefined ? String(comments).trim() : existingCustomer.comments,
+        status: CUSTOMER_STATUS_MAP[status],
       },
       include: customerInclude,
     });
@@ -659,7 +623,6 @@ const archiveCustomer = async (req, res) => {
   try {
     const loggedInUserId = getLoggedInUserId(req);
     const { id } = req.params;
-    const { comments } = req.body || {};
 
     if (!loggedInUserId || !isValidUUID(loggedInUserId)) {
       return res.status(401).json({ message: "Unauthorized. Valid logged-in user is required." });
@@ -675,19 +638,16 @@ const archiveCustomer = async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });
     }
 
-    if (existingCustomer.status === "archived") {
-      return res.status(400).json({ message: "Customer is already archived" });
+    if (existingCustomer.status === 0) {
+      return res.status(400).json({ message: "Customer is already inactive" });
     }
 
     await prisma.customer.update({
       where: { id },
-      data: {
-        status: "archived",
-        comments: comments !== undefined ? String(comments).trim() : existingCustomer.comments,
-      },
+      data: { status: 0 },
     });
 
-    return res.status(200).json({ message: "Customer archived successfully" });
+    return res.status(200).json({ message: "Customer deactivated successfully" });
   } catch (error) {
     console.error("Archive customer error:", error);
     return res.status(500).json({ message: "Failed to archive customer", error: error.message });

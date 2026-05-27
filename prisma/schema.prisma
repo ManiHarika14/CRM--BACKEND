@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -16,14 +17,14 @@ model User {
   role                   String                   @db.VarChar(20)
   status                 Int                      @default(1)
   authLogs               AuthLog[]
-  crm1_deals_log         crm1_deals_log[]
-  crm1_lead_comments_log crm1_lead_comments_log[]
+  crm1_deals_log         Deals_Log[]
+  crm1_lead_comments_log Lead_Comments_Log[]
   crm1_leads             Lead[]
-  crm1_leads_log         crm1_leads_log[]
-  crm1_notes_log         crm1_notes_log[]
+  crm1_leads_log         Leads_Log[]
+  crm1_notes_log         Notes_Log[]
   crm1_tasks             Task[]
-  crm1_tasks_log         crm1_tasks_log[]
-  crm1_users_log         crm1_users_log[]
+  crm1_tasks_log         Tasks_Log[]
+  crm1_users_log         Users_Log[]
 
   @@map("crm1_users")
 }
@@ -43,7 +44,7 @@ model Lead {
   comments            LeadComment[]
   crm1_customers      Customer?        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   crm1_users          User?            @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
-  crm1_leads_log      crm1_leads_log[]
+  crm1_leads_log      Leads_Log[]
 
   @@map("crm1_leads")
 }
@@ -54,7 +55,7 @@ model LeadComment {
   lead_id                String                   @db.Uuid
   comment                String
   lead                   Lead                     @relation(fields: [lead_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
-  crm1_lead_comments_log crm1_lead_comments_log[]
+  crm1_lead_comments_log Lead_Comments_Log[]
 
   @@map("crm1_lead_comments")
 }
@@ -72,7 +73,7 @@ model Customer {
   contact_info             String?
   status                   Int                        @default(1)
   activities               Activity[]
-  crm1_customer_properties crm1_customer_properties[] @ignore
+  crm1_customer_properties Customer_Properties[] @ignore
   deals                    Deal[]
   crm1_leads               Lead[]
   notes                    Note[]
@@ -90,7 +91,7 @@ model Deal {
   comment        String?
   activities     Activity[]
   customer       Customer         @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
-  crm1_deals_log crm1_deals_log[]
+  crm1_deals_log Deals_Log[]
   notes          Note[]
   tasks          Task[]
 
@@ -114,7 +115,7 @@ model Task {
   crm1_users     User?            @relation(fields: [assigner_to], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assigner")
   customer       Customer?        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
   deal           Deal?            @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
-  crm1_tasks_log crm1_tasks_log[]
+  crm1_tasks_log Tasks_Log[]
 
   @@map("crm1_tasks")
 }
@@ -130,7 +131,7 @@ model Note {
   customer       Customer?        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
   deal           Deal?            @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
   task           Task?            @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
-  crm1_notes_log crm1_notes_log[]
+  crm1_notes_log Notes_Log[]
 
   @@map("crm1_notes")
 }
@@ -166,8 +167,7 @@ model AuthLog {
   @@map("crm1_auth_logs")
 }
 
-// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model crm1_customer_properties {
+model Customer_Properties {
   i_id           Int       @unique @default(autoincrement())
   id             String?   @db.Uuid
   email          String?
@@ -177,9 +177,11 @@ model crm1_customer_properties {
   website        String?
   contact_info   String?
   crm1_customers Customer? @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("crm1_customer_properties")
 }
 
-model crm1_deals_log {
+model Deals_Log {
   i_id        Int       @unique @default(autoincrement())
   id          String    @db.Uuid
   user_id     String    @db.Uuid
@@ -187,18 +189,22 @@ model crm1_deals_log {
   date_time   DateTime? @default(now()) @db.Timestamp(6)
   crm1_deals  Deal      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
   crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@map("crm1_deals_log")
 }
 
-model crm1_lead_comments_log {
+model Lead_Comments_Log {
   i_id               Int         @unique @default(autoincrement())
   id                 String      @db.Uuid
   user_id            String      @db.Uuid
   date_time          DateTime?   @default(now()) @db.Timestamp(6)
   crm1_lead_comments LeadComment @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead_comment")
   crm1_users         User        @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@map("crm1_lead_comments_log")
 }
 
-model crm1_leads_log {
+model Leads_Log {
   i_id        Int       @unique @default(autoincrement())
   id          String    @db.Uuid
   user_id     String    @db.Uuid
@@ -206,9 +212,11 @@ model crm1_leads_log {
   date_time   DateTime? @default(now()) @db.Timestamp(6)
   crm1_leads  Lead      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
   crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@map("crm1_leads_log")
 }
 
-model crm1_notes_log {
+model Notes_Log {
   i_id        Int       @unique @default(autoincrement())
   id          String    @db.Uuid
   user_id     String    @db.Uuid
@@ -216,9 +224,11 @@ model crm1_notes_log {
   date_time   DateTime? @default(now()) @db.Timestamp(6)
   crm1_notes  Note      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_note")
   crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@map("crm1_notes_log")
 }
 
-model crm1_tasks_log {
+model Tasks_Log {
   i_id        Int       @unique @default(autoincrement())
   id          String    @db.Uuid
   user_id     String    @db.Uuid
@@ -226,16 +236,46 @@ model crm1_tasks_log {
   date_time   DateTime? @default(now()) @db.Timestamp(6)
   crm1_tasks  Task      @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
   crm1_users  User      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@map("crm1_tasks_log")
 }
 
-model crm1_users_log {
+model Users_Log {
   i_id        Int       @id @default(autoincrement())
   id          String?   @db.Uuid
   log_type_id Int?
   date_time   DateTime? @default(now()) @db.Timestamp(6)
   crm1_users  User?     @relation(fields: [id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("crm1_users_log")
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Old Tables.
 model crm_activites {
   id            String         @id(map: "activities_pkey") @db.Uuid
   entity_type   String
@@ -418,11 +458,4 @@ model crm_users {
   crm_tasks_crm_tasks_assigned_toTocrm_users        crm_tasks[]         @relation("crm_tasks_assigned_toTocrm_users")
   crm_tasks_crm_tasks_created_byTocrm_users         crm_tasks[]         @relation("crm_tasks_created_byTocrm_users")
   crm_tasks_crm_tasks_updated_byTocrm_users         crm_tasks[]         @relation("crm_tasks_updated_byTocrm_users")
-}
-
-model user_wise_menu {
-  i_id      String    @id
-  userId    Int
-  menuId    Int
-  menu_data menu_data @relation(fields: [menuId], references: [id])
 }
