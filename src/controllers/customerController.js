@@ -131,7 +131,18 @@ const createCustomer = async (req, res) => {
     const customer = await prisma.customer.create({
       data: buildCustomerData(req.body),
     });
-
+    await prisma.customer_Properties.create({
+  data: {
+    id: customer.id,
+    email: req.body.email || null,
+    phone: req.body.phone || null,
+    address: req.body.address || null,
+    company_name: req.body.company_name || null,
+    website: req.body.website || null,
+    contact_info: req.body.contact_info || null,
+  },
+});
+   
     return res.status(201).json({
       message: "Customer created successfully",
       customer,

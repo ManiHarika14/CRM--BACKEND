@@ -85,13 +85,27 @@ const validateComment = (comment) => {
   return null;
 };
 
-const createLeadComment = async ({ lead_id, comment }) => {
-  await prisma.leadComment.create({
+const createLeadComment = async ({
+  lead_id,
+  comment,
+  user_id,
+}) => {
+
+  const createdComment = await prisma.leadComment.create({
     data: {
       lead_id,
       comment: comment.trim(),
     },
   });
+
+  await prisma.lead_Comments_Log.create({
+    data: {
+      id: createdComment.id,
+      user_id: user_id,
+      date_time: new Date(),
+    },
+  });
+
 };
 
 const normalizeHeader = (value) => {
@@ -257,6 +271,14 @@ const createLead = async (req, res) => {
       },
       include: leadInclude,
     });
+    await prisma.leads_Log.create({
+  data: {
+    id: lead.id,
+    user_id: req.user.user_id,
+    log_type_id: 1,
+    date_time: new Date(),
+  },
+});
 
     await createActivity({
       entity_type: "lead",
@@ -577,6 +599,7 @@ const updateLead = async (req, res) => {
     await createLeadComment({
       lead_id: id,
       comment,
+      user_id: req.user.user_id,
     });
 
     const updatedLead = await prisma.lead.findUnique({
@@ -648,6 +671,7 @@ const assignLead = async (req, res) => {
     await createLeadComment({
       lead_id: id,
       comment,
+      user_id: req.user.user_id,
     });
 
     const updatedLead = await prisma.lead.findUnique({
@@ -719,6 +743,7 @@ const updateLeadStage = async (req, res) => {
     await createLeadComment({
       lead_id: id,
       comment,
+      user_id: req.user.user_id,
     });
 
     const updatedLead = await prisma.lead.findUnique({
@@ -793,6 +818,7 @@ const updateVerificationStatus = async (req, res) => {
     await createLeadComment({
       lead_id: id,
       comment,
+      user_id: req.user.user_id,
     });
 
     const updatedLead = await prisma.lead.findUnique({

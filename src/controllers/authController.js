@@ -125,7 +125,13 @@ const login = async (req, res) => {
     }
 
     const token = generateToken(user);
-
+    await prisma.users_Log.create({
+  data: {
+    id: user.user_id,
+    log_type_id: 1,
+    date_time: new Date(),
+  },
+});
     await createAuthLog({
       req,
       user_id: user.user_id,

@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
 const { createActivity } = require("../utils/activityLogger");
+const crypto = require("crypto");
 
 const BLOCKED_CUSTOMER_STATUS = 0;
 
@@ -178,6 +179,15 @@ const createNote = async (req, res) => {
         note: cleanNote,
       },
       include: noteInclude,
+    });
+
+    await prisma.notes_Log.create({
+      data: {
+        id: createdNote.id,
+        user_id: req.user.user_id,
+        log_type_id: 1,
+        date_time: new Date(),
+      },
     });
 
     await createActivity({
@@ -535,6 +545,14 @@ const updateNote = async (req, res) => {
       data,
       include: noteInclude,
     });
+    await prisma.notes_Log.create({
+  data: {
+    id: updatedNote.id,
+    user_id: loggedInUserId,
+    log_type_id: 2,
+    date_time: new Date(),
+  },
+});
 
     await createActivity({
       entity_type: "note",
@@ -604,6 +622,14 @@ const deleteNote = async (req, res) => {
         id,
       },
     });
+    await prisma.notesLog.create({
+  data: {
+    id: existingNote.id,
+    user_id: loggedInUserId,
+    log_type_id: 2,
+    date_time: new Date(),
+  },
+});
 
     return res.status(200).json({
       message: "Note deleted successfully",

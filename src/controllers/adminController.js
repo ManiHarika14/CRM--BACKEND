@@ -2,12 +2,26 @@ const bcrypt = require("bcryptjs");
 
 const prisma = require("../utils/prisma");
 
+const {
+  createActivity,
+} = require("../utils/activityLogger");
+
 
 
 // CREATE ADMIN
 const createAdmin = async (req, res) => {
 
   try {
+
+    // ONLY SUPER ADMIN CAN CREATE ADMINS
+    if (req.user.role !== "super_admin") {
+
+      return res.status(403).json({
+        success: false,
+        message: "Only Super Admin can create admins",
+      });
+
+    }
 
     const {
       name,
@@ -48,6 +62,14 @@ const createAdmin = async (req, res) => {
         },
       });
 
+    // ACTIVITY LOG
+    await createActivity({
+      entity_type: "USER",
+      entity_id: admin.user_id,
+      action: "CREATE_ADMIN",
+      description: `Super Admin created admin ${admin.email}`,
+    });
+
     res.status(201).json({
       success: true,
       message: "Admin created successfully",
@@ -73,6 +95,16 @@ const createAdmin = async (req, res) => {
 const getAdmins = async (req, res) => {
 
   try {
+
+    // ONLY SUPER ADMIN CAN VIEW ADMINS
+    if (req.user.role !== "super_admin") {
+
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+
+    }
 
     const admins =
       await prisma.user.findMany({
@@ -109,6 +141,16 @@ const updateAdmin = async (req, res) => {
 
   try {
 
+    // ONLY SUPER ADMIN
+    if (req.user.role !== "super_admin") {
+
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+
+    }
+
     const { id } = req.params;
 
     const {
@@ -128,6 +170,14 @@ const updateAdmin = async (req, res) => {
           status: status !== undefined ? Number(status) : undefined,
         },
       });
+
+    // ACTIVITY LOG
+    await createActivity({
+      entity_type: "USER",
+      entity_id: updatedAdmin.user_id,
+      action: "UPDATE_ADMIN",
+      description: `Super Admin updated admin ${updatedAdmin.email}`,
+    });
 
     res.status(200).json({
       success: true,
@@ -155,12 +205,37 @@ const deleteAdmin = async (req, res) => {
 
   try {
 
+    // ONLY SUPER ADMIN
+    if (req.user.role !== "super_admin") {
+
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+
+    }
+
     const { id } = req.params;
+
+    const admin =
+      await prisma.user.findUnique({
+        where: {
+          user_id: id,
+        },
+      });
 
     await prisma.user.delete({
       where: {
         user_id: id,
       },
+    });
+
+    // ACTIVITY LOG
+    await createActivity({
+      entity_type: "USER",
+      entity_id: id,
+      action: "DELETE_ADMIN",
+      description: `Super Admin deleted admin ${admin?.email}`,
     });
 
     res.status(200).json({
@@ -188,4 +263,4 @@ module.exports = {
   getAdmins,
   updateAdmin,
   deleteAdmin,
-}; 
+};

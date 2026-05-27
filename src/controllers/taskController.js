@@ -238,6 +238,15 @@ const createTask = async (req, res) => {
       include: taskInclude,
     });
 
+  await prisma.tasks_Log.create({
+  data: {
+    id: task.id,
+    user_id: req.user.user_id,
+    log_type_id: 1,
+    date_time: new Date(),
+  },
+});
+
     await createActivity({
       entity_type: "task",
       entity_id: task.id,
@@ -679,6 +688,15 @@ const updateTask = async (req, res) => {
       include: taskInclude,
     });
 
+    await prisma.tasks_Log.create({
+  data: {
+    id: updatedTask.id,
+    user_id: req.user.user_id,
+    log_type_id: 2,
+    date_time: new Date(),
+  },
+});
+
     await createActivity({
       entity_type: "task",
       entity_id: task.id,
@@ -826,6 +844,14 @@ const deleteTask = async (req, res) => {
         id,
       },
     });
+    await prisma.tasks_Log.create({
+  data: {
+    id: existingTask.id,
+    user_id: req.user.user_id,
+    log_type_id: 3,
+    date_time: new Date(),
+  },
+});
 
     return res.status(200).json({
       message: "Task deleted successfully",
