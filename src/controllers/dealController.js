@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
 const { createActivity } = require("../utils/activityLogger");
+const crypto = require("crypto");
 
 const DEAL_STATUS_MAP = {
   new: 1,
@@ -132,6 +133,18 @@ const createDeal = async (req, res) => {
       customer_id: deal.customer_id,
       deal_id: deal.id,
     });
+    // INSERT INTO deals_log
+await prisma.deals_Log.create({
+  data: {
+    id: deal.id,
+
+    user_id: req.user.user_id,
+
+    log_type_id: 1,
+
+    date_time: new Date(),
+  },
+});
 
     return res.status(201).json({
       message: "Deal created successfully",
