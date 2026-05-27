@@ -41,6 +41,7 @@ model Lead {
   user_id             String?       @db.Uuid
   activities          Activity[]
   comments            LeadComment[]
+  crm1_customers      Customer?     @relation("crm1_customers", fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   crm1_users          User?         @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
   crm1_leads_log      Leads_Log[]
 
@@ -59,12 +60,17 @@ model LeadComment {
 }
 
 model Customer {
-  i_id          Int     @unique @default(autoincrement())
-  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String  @db.VarChar(100)
-  email         String? @unique @db.VarChar(150)
-  customer_type String? @db.VarChar(50)
-  status        Int?    @default(1)
+  i_id          Int        @unique @default(autoincrement())
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String     @db.VarChar(100)
+  email         String?    @db.VarChar(150)
+  customer_type String?    @db.VarChar(50)
+  status        Int?       @default(1)
+  activities    Activity[]
+  deals         Deal[]
+  crm1_leads    Lead[]      @relation("crm1_customers")
+  notes         Note[]
+  tasks         Task[]
 
   @@map("crm1_customers")
 }
@@ -77,6 +83,7 @@ model Deal {
   status         Int?        @default(1)
   comment        String?
   activities     Activity[]
+  customer       Customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
   crm1_deals_log Deals_Log[]
   notes          Note[]
   tasks          Task[]
@@ -99,6 +106,7 @@ model Task {
   activities     Activity[]
   notes          Note[]
   crm1_users     User?       @relation(fields: [assigner_to], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assigner")
+  customer       Customer?   @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
   deal           Deal?       @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
   crm1_tasks_log Tasks_Log[]
 
@@ -113,6 +121,7 @@ model Note {
   task_id        String?     @db.Uuid
   note           String
   activities     Activity[]
+  customer       Customer?   @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
   deal           Deal?       @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
   task           Task?       @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
   crm1_notes_log Notes_Log[]
@@ -132,16 +141,17 @@ model Activity {
   deal_id     String? @db.Uuid
   task_id     String? @db.Uuid
   note_id     String? @db.Uuid
-  deal        Deal?   @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
-  lead        Lead?   @relation(fields: [lead_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
-  note        Note?   @relation(fields: [note_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_note")
-  task        Task?   @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
+  customer    Customer? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer")
+  deal        Deal?     @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deal")
+  lead        Lead?     @relation(fields: [lead_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_lead")
+  note        Note?     @relation(fields: [note_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_note")
+  task        Task?     @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_task")
 
   @@map("crm1_activities")
 }
 
 model AuthLog {
-  i_id        Int       @unique @default(autoincrement())
+  i_id        Int       @id @default(autoincrement())
   user_id     String    @db.Uuid
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
@@ -151,7 +161,7 @@ model AuthLog {
 }
 
 model Customer_Properties {
-  i_id         Int     @default(autoincrement())
+  i_id         Int     @id @default(autoincrement())
   id           String? @db.Uuid
   email        String?
   phone        String?

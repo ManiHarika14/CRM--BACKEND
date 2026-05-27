@@ -39,8 +39,6 @@ const noteInclude = {
       status: true,
       name: true,
       email: true,
-      phone: true,
-      company_name: true,
     },
   },
   deal: {
@@ -284,14 +282,6 @@ const getNotes = async (req, res) => {
         {
           customer: {
             email: {
-              contains: cleanSearch,
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          customer: {
-            company_name: {
               contains: cleanSearch,
               mode: "insensitive",
             },

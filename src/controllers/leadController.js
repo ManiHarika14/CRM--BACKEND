@@ -176,51 +176,6 @@ const mapImportRow = (row) => {
         "created date",
       ])
     ),
-    lead_type: normalizeLeadType(
-      pickImportValue(row, ["lead_type", "lead type", "type"])
-    ),
-    name: cleanImportValue(
-      pickImportValue(row, [
-        "name",
-        "full name",
-        "full_name",
-        "lead name",
-        "lead_name",
-        "contact name",
-        "contact_name",
-      ])
-    ),
-    email: normalizeEmail(
-      pickImportValue(row, ["email", "email address", "email_address"])
-    ),
-    phone: cleanImportValue(
-      pickImportValue(row, [
-        "phone",
-        "phone number",
-        "phone_number",
-        "mobile",
-        "mobile number",
-        "mobile_number",
-        "contact",
-        "contact number",
-        "contact_number",
-      ])
-    ),
-    address: cleanImportValue(pickImportValue(row, ["address", "location", "city"])),
-    company_name: cleanImportValue(
-      pickImportValue(row, [
-        "company",
-        "company name",
-        "company_name",
-        "organization",
-        "organisation",
-        "business name",
-        "business_name",
-      ])
-    ),
-    website: cleanImportValue(
-      pickImportValue(row, ["website", "web site", "web_site", "site"])
-    ),
     verification_status: normalizeVerificationStatus(
       pickImportValue(row, ["verification_status", "verification status", "status"])
     ),
@@ -234,8 +189,8 @@ const mapImportRow = (row) => {
 };
 
 const getDuplicateKey = (lead) => {
-  if (lead.email) return `email:${lead.email}`;
-  if (lead.phone) return `phone:${lead.phone}`;
+  if (lead.source_url) return `source_url:${lead.source_url}`;
+  if (lead.source) return `source:${lead.source}`;
   return null;
 };
 

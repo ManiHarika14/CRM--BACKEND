@@ -39,8 +39,6 @@ const dealInclude = {
       status: true,
       name: true,
       email: true,
-      phone: true,
-      company_name: true,
     },
   },
   notes: true,
@@ -223,14 +221,6 @@ const getDeals = async (req, res) => {
         {
           customer: {
             email: {
-              contains: cleanSearch,
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          customer: {
-            company_name: {
               contains: cleanSearch,
               mode: "insensitive",
             },

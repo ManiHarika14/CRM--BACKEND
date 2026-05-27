@@ -36,8 +36,6 @@ const activityInclude = {
       status: true,
       name: true,
       email: true,
-      phone: true,
-      company_name: true,
     },
   },
   deal: {
