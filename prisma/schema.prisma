@@ -24,7 +24,7 @@ model User {
   crm1_tasks             Task[]
   crm1_tasks_log         Tasks_Log[]
   crm1_users_log         Users_Log[]
-
+  crm1_customer_log      Customer_Log[]
   @@map("crm1_users")
 }
 
@@ -71,7 +71,8 @@ model Customer {
   crm1_leads    Lead[]      @relation("crm1_customers")
   notes         Note[]
   tasks         Task[]
-
+  properties    Customer_Properties?
+  crm1_customer_log Customer_Log[]
   @@map("crm1_customers")
 }
 
@@ -162,14 +163,14 @@ model AuthLog {
 
 model Customer_Properties {
   i_id         Int     @id @default(autoincrement())
-  id           String? @db.Uuid
+  id           String? @unique @db.Uuid
   email        String?
   phone        String?
   address      String?
   company_name String?
   website      String?
   contact_info String?
-
+  customer     Customer? @relation(fields: [id], references: [id])
   @@map("crm1_customer_properties")
 }
 
@@ -240,6 +241,20 @@ model Users_Log {
   crm1_users  User      @relation(fields: [id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
 
   @@map("crm1_users_log")
+}
+
+
+model Customer_Log {
+  i_id        Int      @id @default(autoincrement())
+  id          String   @db.Uuid
+  user_id     String   @db.Uuid
+  log_type_id Int
+  date_time   DateTime @default(now())
+
+  customer Customer @relation(fields: [id], references: [id])
+  user     User     @relation(fields: [user_id], references: [user_id])
+
+  @@map("crm1_customer_log")
 }
 
 

@@ -61,6 +61,20 @@ const noteInclude = {
       due_date: true,
     },
   },
+  crm1_notes_log: {
+    include: {
+      crm1_users: {
+        select: {
+          user_id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      i_id : "asc",
+    },
+  },
   // removed createdBy/updatedBy includes
 };
 
@@ -329,6 +343,19 @@ const getNotes = async (req, res) => {
       }),
     ]);
 
+
+    const formattedNotes = notes.map((note) => {
+  const createdLog = note.crm1_notes_log?.[0];
+
+  return {
+    ...note,
+    createdBy: createdLog?.crm1_users?.name || "-",
+    createdOn: createdLog?.date_time || null,
+  };
+});
+
+console.log(JSON.stringify(formattedNotes[0], null, 2));
+
     return res.status(200).json({
       message: "Notes fetched successfully",
       pagination: {
@@ -337,7 +364,7 @@ const getNotes = async (req, res) => {
         limit: limitNumber,
         totalPages: Math.ceil(total / limitNumber),
       },
-      notes,
+      notes: formattedNotes,
     });
   } catch (error) {
     console.error("Get notes error:", error);

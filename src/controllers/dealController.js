@@ -44,6 +44,24 @@ const dealInclude = {
   },
   notes: true,
   tasks: true,
+
+
+  crm1_deals_log: {
+    include: {
+      crm1_users: {
+        select: {
+          user_id: true,
+          name: true,
+          email: true,
+
+
+        },
+      },
+    },
+    orderBy: {
+      date_time: "asc",
+    },
+  },
 };
 
 const createDeal = async (req, res) => {
@@ -254,6 +272,26 @@ const getDeals = async (req, res) => {
         take: limitNumber,
       }),
     ]);
+    const formattedDeals = deals.map((deal) => {
+  const createdLog = deal.crm1_deals_log?.[0];
+
+  const updatedLog =
+    deal.crm1_deals_log?.[deal.crm1_deals_log.length - 1];
+
+  return {
+    ...deal,
+
+    createdBy: createdLog?.crm1_users?.name || "-",
+
+    createdOn: createdLog?.date_time || null,
+
+    updatedBy: updatedLog?.crm1_users?.name || "-",
+
+    updatedOn: updatedLog?.date_time || null,
+  };
+});
+
+console.log(JSON.stringify(formattedDeals[0], null, 2));
 
     return res.status(200).json({
       message: "Deals fetched successfully",
@@ -263,7 +301,7 @@ const getDeals = async (req, res) => {
         limit: limitNumber,
         totalPages: Math.ceil(total / limitNumber),
       },
-      deals,
+      deals: formattedDeals,
     });
   } catch (error) {
     console.error("Get deals error:", error);

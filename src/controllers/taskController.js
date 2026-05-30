@@ -77,6 +77,20 @@ const taskInclude = {
       status: true,
     },
   },
+  crm1_tasks_log: {
+    include: {
+      crm1_users: {
+       select: {
+        user_id: true,
+        name: true,
+        email: true,
+      },
+    },
+  },
+  orderBy: {
+    date_time: "desc",
+  },
+}
 };
 
 const createTask = async (req, res) => {
@@ -411,6 +425,7 @@ const getTasks = async (req, res) => {
         take: limitNumber,
       }),
     ]);
+    console.log(JSON.stringify(tasks[0], null, 2));
 
     return res.status(200).json({
       message: "Tasks fetched successfully",
