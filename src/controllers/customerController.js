@@ -142,7 +142,13 @@ const createCustomer = async (req, res) => {
     contact_info: req.body.contact_info || null,
   },
 });
-   
+   await prisma.customer_Log.create({
+  data: {
+    id: customer.id,
+    user_id: req.user.user_id,
+    log_type_id: 1,
+  },
+});
     return res.status(201).json({
       message: "Customer created successfully",
       customer,
@@ -203,13 +209,30 @@ const getCustomers = async (req, res) => {
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where,
-        orderBy: { i_id: "desc" },
+
+        include: {
+          properties: true,
+          
+          customer_logs: {
+            orderBy: {
+              date_time: "desc",
+            },
+            take: 1,
+
+            include: {
+              user: true,
+            },
+          },
+        },
+        orderBy: {
+          i_id : "desc",
+        },
         skip,
         take: limitNumber,
       }),
       prisma.customer.count({ where }),
     ]);
-
+    console.log(JSON.stringify(customers, null, 2));
     return res.status(200).json({
       message: "Customers fetched successfully",
       pagination: {
@@ -238,7 +261,10 @@ const getCustomerById = async (req, res) => {
       return res.status(400).json({ message: "Invalid customer id" });
     }
 
-    const customer = await prisma.customer.findUnique({ where: { id } });
+    const customer = await prisma.customer.findUnique({ 
+      where: { id },
+      
+    });
 
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
@@ -309,6 +335,15 @@ const updateCustomer = async (req, res) => {
       where: { id },
       data: buildCustomerData(req.body),
     });
+    console.log("Customer Updated:", customer.id);
+    await prisma.customer_Log.create({
+  data: {
+    id: customer.id,
+    user_id: req.user.user_id,
+    log_type_id: 2,
+  },
+});
+console.log("Customer Log Created");
 
     return res.status(200).json({
       message: "Customer updated successfully",

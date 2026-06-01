@@ -68,15 +68,21 @@ const taskInclude = {
       status: true,
     },
   },
-  crm1_users: {
-    select: {
-      user_id: true,
-      name: true,
-      email: true,
-      role: true,
-      status: true,
+ 
+  task_logs: {
+    include: {
+      user: {
+       select: {
+        user_id: true,
+        name: true,
+        email: true,
+      },
     },
   },
+  orderBy: {
+    date_time: "desc",
+  },
+}
 };
 
 const createTask = async (req, res) => {
@@ -411,6 +417,7 @@ const getTasks = async (req, res) => {
         take: limitNumber,
       }),
     ]);
+    console.log(JSON.stringify(tasks[0], null, 2));
 
     return res.status(200).json({
       message: "Tasks fetched successfully",
@@ -690,14 +697,14 @@ const updateTask = async (req, res) => {
 
     await prisma.tasks_Log.create({
   data: {
-    id: updatedTask.id,
+    id: task.id,
     user_id: req.user.user_id,
     log_type_id: 2,
     date_time: new Date(),
   },
 });
 
-    await createActivity({
+    /*await createActivity({
       entity_type: "task",
       entity_id: task.id,
       action: "task_updated",
@@ -705,7 +712,7 @@ const updateTask = async (req, res) => {
       customer_id: task.customer_id,
       deal_id: task.deal_id,
       task_id: task.id,
-    });
+    });*/
 
     return res.status(200).json({
       message: "Task updated successfully",

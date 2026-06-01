@@ -42,8 +42,25 @@ const dealInclude = {
       email: true,
     },
   },
-  notes: true,
-  tasks: true,
+  
+
+
+  deal_logs: {
+    include: {
+      user: {
+        select: {
+          user_id: true,
+          name: true,
+          email: true,
+
+
+        },
+      },
+    },
+    orderBy: {
+      date_time: "asc",
+    },
+  },
 };
 
 const createDeal = async (req, res) => {
@@ -134,7 +151,7 @@ const createDeal = async (req, res) => {
       deal_id: deal.id,
     });
     // INSERT INTO deals_log
-await prisma.deals_Log.create({
+await prisma.deal_logs.create({
   data: {
     id: deal.id,
 
@@ -254,6 +271,26 @@ const getDeals = async (req, res) => {
         take: limitNumber,
       }),
     ]);
+    const formattedDeals = deals.map((deal) => {
+  const createdLog = deal.deal_logs?.[0];
+
+  const updatedLog =
+    deal.deal_logs?.[deal.deal_logs.length - 1];
+
+  return {
+    ...deal,
+
+    createdBy: createdLog?.user?.name || "-",
+
+    createdOn: createdLog?.date_time || null,
+
+    updatedBy: updatedLog?.user?.name || "-",
+
+    updatedOn: updatedLog?.date_time || null,
+  };
+});
+
+console.log(JSON.stringify(formattedDeals[0], null, 2));
 
     return res.status(200).json({
       message: "Deals fetched successfully",
@@ -263,7 +300,7 @@ const getDeals = async (req, res) => {
         limit: limitNumber,
         totalPages: Math.ceil(total / limitNumber),
       },
-      deals,
+      deals: formattedDeals,
     });
   } catch (error) {
     console.error("Get deals error:", error);

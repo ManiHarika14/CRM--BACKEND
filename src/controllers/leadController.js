@@ -32,9 +32,23 @@ const userSelect = {
 };
 
 const leadInclude = {
-  crm1_users: { select: userSelect },
+  user: { select: userSelect },
+
+  customer: {
+    include: {
+      properties: true,
+    },
+  },
   comments: {
     orderBy: {
+      i_id: "desc",
+    },
+  },
+  lead_logs: {
+    include: {
+      user: true,
+    },
+    orderBy: {  
       i_id: "desc",
     },
   },
@@ -90,6 +104,11 @@ const createLeadComment = async ({
   comment,
   user_id,
 }) => {
+ 
+  console.log("lead_id =", lead_id);
+  console.log("comment =", comment);
+  console.log("user_id =", user_id);
+   
 
   const createdComment = await prisma.leadComment.create({
     data: {
@@ -105,6 +124,7 @@ const createLeadComment = async ({
       date_time: new Date(),
     },
   });
+   console.log("LOG CREATED");
 
 };
 
@@ -240,15 +260,28 @@ const getRowsFromUploadedFile = (fileBuffer) => {
 
 const createLead = async (req, res) => {
   try {
+    console.log("REQ BODY:", req.body)
+    
     const {
       source,
       source_url,
+      customer_id,
       extraction_date,
       verification_status,
       confidence,
       crm_stage,
       assigned_to,
+
+      lead_type,
+      name,
+      email,
+      phone,
+      address,
+      company_name,
+      website,
     } = req.body;
+    
+    console.log("customer_id:", customer_id);
 
     const assignmentError = await validateAssignedUser(assigned_to);
 
@@ -259,10 +292,35 @@ const createLead = async (req, res) => {
       });
     }
 
+    console.log("customer_id:", customer_id);
+    console.log(req.body);
+
+    const customer = await prisma.customer.create({
+  data: {
+    name,
+    email,
+    customer_type: lead_type,
+    status: 1,
+  },
+});
+
+await prisma.customer_Properties.create({
+  data: {
+    id: customer.id,
+    email,
+    phone,
+    address,
+    company_name,
+    website,
+    contact_info: email,
+  },
+});
+
     const lead = await prisma.lead.create({
       data: {
         source,
         source_url,
+        customer_id: customer.id,
         extraction_date: extraction_date ? new Date(extraction_date) : null,
         verification_status: verification_status || "new",
         confidence,
@@ -472,6 +530,7 @@ const getLeads = async (req, res) => {
       }),
       prisma.lead.count({ where }),
     ]);
+    console.log(JSON.stringify(leads, null, 2));
 
     return res.status(200).json({
       success: true,
