@@ -68,6 +68,14 @@ const taskInclude = {
       status: true,
     },
   },
+  assignedUser: {
+  select: {
+    user_id: true,
+    name: true,
+    email: true,
+    role: true,
+  },
+},
  
   task_logs: {
     include: {
