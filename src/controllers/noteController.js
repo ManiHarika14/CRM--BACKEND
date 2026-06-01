@@ -61,7 +61,7 @@ const noteInclude = {
       due_date: true,
     },
   },
-  note_log: {
+  note_logs: {
     include: {
       user: {
         select: {
@@ -344,8 +344,8 @@ const getNotes = async (req, res) => {
     ]);
 
 
-    const formattedNotes = notes.map((note) => {
-  const createdLog = note._note_log?.[0];
+  const formattedNotes = notes.map((note) => {
+  const createdLog = note._note_logs?.[0];
 
   return {
     ...note,
