@@ -20,9 +20,8 @@ model User {
   deal_logs DealLog[]
   task_logs Tasks_Log[]
   note_logs Notes_Log[]
-
-  
-  @@map("crm_users")
+  assigned_tasks Task[]    @relation("TaskAssignee")
+   @@map("crm_users")
 }
 model Lead {
   i_id                Int           @default(autoincrement())
@@ -40,6 +39,7 @@ model Lead {
 
   comments LeadComment[]
   lead_logs Leads_Log[]
+  activities Activity[]
   @@map("crm_leads")
 }
 
@@ -65,6 +65,7 @@ model Customer {
   deals         Deal[]
   tasks        Task[]
   notes Note[]
+  activities Activity[]
 
   @@map("crm_customers")
 }
@@ -80,6 +81,7 @@ model Deal {
   notes     Note[]
   tasks     Task[]
   deal_logs DealLog[]
+  activities Activity[]
   
   @@map("crm_deals")
 }
@@ -90,17 +92,18 @@ model Task {
   customer_id    String?     @db.Uuid
   deal_id        String?     @db.Uuid
   assigner_to    String?     @db.Uuid
+  assignedUser   User?    @relation("TaskAssignee",fields: [assigner_to], references: [user_id])
   title          String
   description    String?
   status         Int?        @default(1)
   priority       Int?        @default(1)
   due_date       DateTime?   @db.Timestamp(6)
-  comment   String?     @map("comment_text") @db.VarChar(250)
-  deal      Deal?       @relation(fields: [deal_id], references: [id])
-  customer  Customer?   @relation(fields: [customer_id], references: [id])
-  notes     Note[]
-  task_logs Tasks_Log[]
-   notes          Note[]
+  comment        String?     @map("comment_text") @db.VarChar(250)
+  deal           Deal? @relation(fields: [deal_id], references: [id])
+  customer       Customer? @relation(fields: [customer_id], references: [id])
+  task_logs      Tasks_Log[]
+  notes         Note[]
+  activities    Activity[]
 
   @@map("crm_tasks")
 }
@@ -117,6 +120,7 @@ model Note {
   task     Task?     @relation(fields: [task_id], references: [id])
 
   note_logs Notes_Log[]
+  activities Activity[]
 
   @@map("crm_notes")
 }
@@ -133,7 +137,11 @@ model Activity {
   deal_id     String? @db.VarChar(50)
   task_id     String? @db.VarChar(50)
   note_id     String? @db.VarChar(50)
-   
+  lead     Lead?     @relation(fields: [lead_id], references: [id])
+  customer Customer? @relation(fields: [customer_id], references: [id])
+  deal     Deal?     @relation(fields: [deal_id], references: [id])
+  task     Task?     @relation(fields: [task_id], references: [id])
+  note     Note?     @relation(fields: [note_id], references: [id])
 
   @@map("crm_activities")
 }
