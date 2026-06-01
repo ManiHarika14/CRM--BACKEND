@@ -96,8 +96,9 @@ model Task {
   priority       Int?        @default(1)
   due_date       DateTime?   @db.Timestamp(6)
   comment   String?     @map("comment_text") @db.VarChar(250)
-  deal Deal? @relation(fields: [deal_id], references: [id])
-  customer Customer? @relation(fields: [customer_id], references: [id])
+  deal      Deal?       @relation(fields: [deal_id], references: [id])
+  customer  Customer?   @relation(fields: [customer_id], references: [id])
+  notes     Note[]
   task_logs Tasks_Log[]
 
   @@map("crm_tasks")
