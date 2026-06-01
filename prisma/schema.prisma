@@ -99,6 +99,7 @@ model Task {
   deal Deal? @relation(fields: [deal_id], references: [id])
   customer Customer? @relation(fields: [customer_id], references: [id])
   task_logs Tasks_Log[]
+   notes          Note[]
 
   @@map("crm_tasks")
 }
