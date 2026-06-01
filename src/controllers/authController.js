@@ -15,7 +15,7 @@ const register = async (req, res) => {
       });
     }
 
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findFirst({
       where: { email },
     });
 
@@ -76,7 +76,7 @@ const login = async (req, res) => {
       });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { email },
     });
 

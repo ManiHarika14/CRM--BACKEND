@@ -32,15 +32,23 @@ const userSelect = {
 };
 
 const leadInclude = {
-  crm1_users: { select: userSelect },
+  user: { select: userSelect },
 
-  crm1_customers: {
+  customer: {
     include: {
       properties: true,
     },
   },
   comments: {
     orderBy: {
+      i_id: "desc",
+    },
+  },
+  lead_logs: {
+    include: {
+      user: true,
+    },
+    orderBy: {  
       i_id: "desc",
     },
   },

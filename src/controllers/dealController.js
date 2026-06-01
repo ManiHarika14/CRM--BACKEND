@@ -42,13 +42,12 @@ const dealInclude = {
       email: true,
     },
   },
-  notes: true,
-  tasks: true,
+  
 
 
-  crm1_deals_log: {
+  deal_logs: {
     include: {
-      crm1_users: {
+      user: {
         select: {
           user_id: true,
           name: true,
@@ -152,7 +151,7 @@ const createDeal = async (req, res) => {
       deal_id: deal.id,
     });
     // INSERT INTO deals_log
-await prisma.deals_Log.create({
+await prisma.deal_logs.create({
   data: {
     id: deal.id,
 
@@ -273,19 +272,19 @@ const getDeals = async (req, res) => {
       }),
     ]);
     const formattedDeals = deals.map((deal) => {
-  const createdLog = deal.crm1_deals_log?.[0];
+  const createdLog = deal.deal_logs?.[0];
 
   const updatedLog =
-    deal.crm1_deals_log?.[deal.crm1_deals_log.length - 1];
+    deal.deal_logs?.[deal.deal_logs.length - 1];
 
   return {
     ...deal,
 
-    createdBy: createdLog?.crm1_users?.name || "-",
+    createdBy: createdLog?.user?.name || "-",
 
     createdOn: createdLog?.date_time || null,
 
-    updatedBy: updatedLog?.crm1_users?.name || "-",
+    updatedBy: updatedLog?.user?.name || "-",
 
     updatedOn: updatedLog?.date_time || null,
   };

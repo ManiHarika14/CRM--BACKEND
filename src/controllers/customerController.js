@@ -213,7 +213,7 @@ const getCustomers = async (req, res) => {
         include: {
           properties: true,
           
-          crm1_customer_log: {
+          customer_logs: {
             orderBy: {
               date_time: "desc",
             },

@@ -61,9 +61,9 @@ const noteInclude = {
       due_date: true,
     },
   },
-  crm1_notes_log: {
+  note_log: {
     include: {
-      crm1_users: {
+      user: {
         select: {
           user_id: true,
           name: true,
@@ -345,11 +345,11 @@ const getNotes = async (req, res) => {
 
 
     const formattedNotes = notes.map((note) => {
-  const createdLog = note.crm1_notes_log?.[0];
+  const createdLog = note._note_log?.[0];
 
   return {
     ...note,
-    createdBy: createdLog?.crm1_users?.name || "-",
+    createdBy: createdLog?.user?.name || "-",
     createdOn: createdLog?.date_time || null,
   };
 });
