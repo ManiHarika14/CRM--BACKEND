@@ -142,14 +142,14 @@ const createDeal = async (req, res) => {
       include: dealInclude,
     });
 
-    /*await createActivity({
+    await createActivity({
       entity_type: "deal",
       entity_id: deal.id,
       action: "deal_created",
       description: `Deal created with status ${dealStatusLabel}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
-    });*/
+    });
     // INSERT INTO deals_log
 await prisma.dealLog.create({
   data: {

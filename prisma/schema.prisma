@@ -21,6 +21,7 @@ model User {
   task_logs Tasks_Log[]
   note_logs Notes_Log[]
   assigned_tasks Task[]    @relation("TaskAssignee")
+   authLogs  AuthLog[]
    @@map("crm_users")
 }
 model Lead {
@@ -132,11 +133,11 @@ model Activity {
   entity_id   String? @db.Uuid
   action      String? @map("activity")@db.VarChar(100)
   description String?
-  lead_id     String? @db.VarChar(50)
-  customer_id String? @db.VarChar(50)
-  deal_id     String? @db.VarChar(50)
-  task_id     String? @db.VarChar(50)
-  note_id     String? @db.VarChar(50)
+  lead_id     String? @db.Uuid
+  customer_id String? @db.Uuid
+  deal_id     String? @db.Uuid
+  task_id     String? @db.Uuid
+  note_id     String? @db.Uuid
   lead     Lead?     @relation(fields: [lead_id], references: [id])
   customer Customer? @relation(fields: [customer_id], references: [id])
   deal     Deal?     @relation(fields: [deal_id], references: [id])
@@ -152,7 +153,7 @@ model AuthLog {
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
       
-
+  user User @relation(fields: [user_id], references: [user_id])
   @@map("crm_auth_logs")
 }
 

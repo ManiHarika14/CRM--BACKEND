@@ -294,9 +294,11 @@ const createLead = async (req, res) => {
 
     console.log("customer_id:", customer_id);
     console.log(req.body);
-
+    console.log("name:", name);
+    console.log("email:", email);
+    console.log("lead_type:", lead_type);
     const customer = await prisma.customer.create({
-  data: {
+    data: {
     name,
     email,
     customer_type: lead_type,
