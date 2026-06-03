@@ -3,18 +3,50 @@ const express = require("express");
 const router = express.Router();
 
 const {
+  protect,
+} = require("../middlewares/authMiddleware");
+
+const {
   createAdmin,
   getAdmins,
+  getAdminById,
   updateAdmin,
   deleteAdmin,
 } = require("../controllers/adminController");
 
-router.post("/", createAdmin);
+// CREATE ADMIN
+router.post(
+  "/",
+  protect,
+  createAdmin
+);
 
-router.get("/", getAdmins);
+// GET ALL ADMINS
+router.get(
+  "/",
+  protect,
+  getAdmins
+);
 
-router.put("/:id", updateAdmin);
+// GET ADMIN BY ID
+router.get(
+  "/:id",
+  protect,
+  getAdminById
+);
 
-router.delete("/:id", deleteAdmin);
+// UPDATE ADMIN
+router.put(
+  "/:id",
+  protect,
+  updateAdmin
+);
+
+// DELETE ADMIN
+router.delete(
+  "/:id",
+  protect,
+  deleteAdmin
+);
 
 module.exports = router;

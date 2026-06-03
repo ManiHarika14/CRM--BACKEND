@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
 const { createActivity } = require("../utils/activityLogger");
+const crypto = require("crypto");
 
 const DEAL_STATUS_MAP = {
   new: 1,
@@ -41,8 +42,25 @@ const dealInclude = {
       email: true,
     },
   },
-  notes: true,
-  tasks: true,
+  
+
+
+  deal_logs: {
+    include: {
+      user: {
+        select: {
+          user_id: true,
+          name: true,
+          email: true,
+
+
+        },
+      },
+    },
+    orderBy: {
+      date_time: "asc",
+    },
+  },
 };
 
 const createDeal = async (req, res) => {
@@ -124,14 +142,26 @@ const createDeal = async (req, res) => {
       include: dealInclude,
     });
 
-    await createActivity({
+    /*await createActivity({
       entity_type: "deal",
       entity_id: deal.id,
       action: "deal_created",
       description: `Deal created with status ${dealStatusLabel}.`,
       customer_id: deal.customer_id,
       deal_id: deal.id,
-    });
+    });*/
+    // INSERT INTO deals_log
+await prisma.dealLog.create({
+  data: {
+    id: deal.id,
+
+    user_id: req.user.user_id,
+
+    log_type_id: 1,
+
+    date_time: new Date(),
+  },
+});
 
     return res.status(201).json({
       message: "Deal created successfully",
@@ -241,6 +271,26 @@ const getDeals = async (req, res) => {
         take: limitNumber,
       }),
     ]);
+    const formattedDeals = deals.map((deal) => {
+  const createdLog = deal.deal_logs?.[0];
+
+  const updatedLog =
+    deal.deal_logs?.[deal.deal_logs.length - 1];
+
+  return {
+    ...deal,
+
+    createdBy: createdLog?.user?.name || "-",
+
+    createdOn: createdLog?.date_time || null,
+
+    updatedBy: updatedLog?.user?.name || "-",
+
+    updatedOn: updatedLog?.date_time || null,
+  };
+});
+
+console.log(JSON.stringify(formattedDeals[0], null, 2));
 
     return res.status(200).json({
       message: "Deals fetched successfully",
@@ -250,7 +300,7 @@ const getDeals = async (req, res) => {
         limit: limitNumber,
         totalPages: Math.ceil(total / limitNumber),
       },
-      deals,
+      deals: formattedDeals,
     });
   } catch (error) {
     console.error("Get deals error:", error);
