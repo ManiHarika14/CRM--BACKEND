@@ -345,7 +345,7 @@ const getNotes = async (req, res) => {
 
 
   const formattedNotes = notes.map((note) => {
-  const createdLog = note._note_logs?.[0];
+  const createdLog = note.note_logs?.[0];
 
   return {
     ...note,
@@ -390,6 +390,9 @@ const getNoteById = async (req, res) => {
       },
       include: noteInclude,
     });
+    const createdLog = note.note_logs?.[0];
+    note.createdBy = createdLog?.user?.name || "-";
+note.createdOn = createdLog?.date_time || null;
 
     if (!note) {
       return res.status(404).json({
