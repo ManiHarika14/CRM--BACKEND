@@ -9,6 +9,7 @@ const {
 } = require("../controllers/noteController");
 
 const { protect } = require("../middlewares/authMiddleware");
+const checkPermission = require("../middlewares/checkPermission");
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ const router = express.Router();
  *       500:
  *         description: Internal server error
  */
-router.post("/", protect, createNote);
+router.post("/", protect, checkPermission("note", "creator"), createNote);
 
 /**
  * @swagger
@@ -159,7 +160,7 @@ router.post("/", protect, createNote);
  *       500:
  *         description: Internal server error
  */
-router.get("/", protect, getNotes);
+router.get("/", protect, checkPermission("note", "viewer"), getNotes);
 
 /**
  * @swagger
@@ -189,7 +190,7 @@ router.get("/", protect, getNotes);
  *       500:
  *         description: Internal server error
  */
-router.get("/:id", protect, getNoteById);
+router.get("/:id", protect, checkPermission("note", "viewer"), getNoteById);
 
 /**
  * @swagger
@@ -240,7 +241,7 @@ router.get("/:id", protect, getNoteById);
  *       500:
  *         description: Internal server error
  */
-router.patch("/:id", protect, updateNote);
+router.patch("/:id", protect, checkPermission("note", "editor"), updateNote);
 
 /**
  * @swagger
@@ -270,6 +271,6 @@ router.patch("/:id", protect, updateNote);
  *       500:
  *         description: Internal server error
  */
-router.delete("/:id", protect, deleteNote);
+router.delete("/:id", protect, checkPermission("note", "deleter"), deleteNote);
 
 module.exports = router;

@@ -11,8 +11,9 @@ const {
 } = require("../controllers/customerController");
 
 const { protect } = require("../middlewares/authMiddleware");
-
+const checkPermission = require("../middlewares/checkPermission");
 const router = express.Router();
+
 
 /**
  * @swagger
@@ -78,7 +79,7 @@ const router = express.Router();
  *       409:
  *         description: Duplicate customer found
  */
-router.post("/", protect, createCustomer);
+router.post("/", protect, checkPermission("customer", "creator"), createCustomer);
 
 /**
  * @swagger
@@ -124,7 +125,7 @@ router.post("/", protect, createCustomer);
  *       401:
  *         description: Unauthorized
  */
-router.get("/", protect, getCustomers);
+router.get("/", protect, checkPermission("customer", "viewer"), getCustomers);
 
 /**
  * @swagger
@@ -165,7 +166,7 @@ router.get("/", protect, getCustomers);
  *       409:
  *         description: Duplicate customer found
  */
-router.post("/convert-lead/:leadId", protect, convertLeadToCustomer);
+router.post("/convert-lead/:leadId", protect, checkPermission("customer", "creator"), convertLeadToCustomer);
 
 /**
  * @swagger
@@ -208,7 +209,7 @@ router.post("/convert-lead/:leadId", protect, convertLeadToCustomer);
  *       404:
  *         description: Customer not found
  */
-router.patch("/:id/status", protect, updateCustomerStatus);
+router.patch("/:id/status", protect, checkPermission("customer", "editor"), updateCustomerStatus);
 
 /**
  * @swagger
@@ -245,7 +246,7 @@ router.patch("/:id/status", protect, updateCustomerStatus);
  *       404:
  *         description: Customer not found
  */
-router.delete("/:id", protect, archiveCustomer);
+router.delete("/:id", protect, checkPermission("customer", "deleter"), archiveCustomer);
 
 /**
  * @swagger
@@ -272,7 +273,7 @@ router.delete("/:id", protect, archiveCustomer);
  *       404:
  *         description: Customer not found
  */
-router.get("/:id", protect, getCustomerById);
+router.get("/:id", protect, checkPermission("customer", "viewer"), getCustomerById);
 
 /**
  * @swagger
@@ -340,6 +341,6 @@ router.get("/:id", protect, getCustomerById);
  *       409:
  *         description: Duplicate customer found
  */
-router.patch("/:id", protect, updateCustomer);
+router.patch("/:id", protect, checkPermission("customer", "editor"), updateCustomer);
 
 module.exports = router;

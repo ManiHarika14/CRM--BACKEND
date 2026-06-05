@@ -16,6 +16,7 @@ const noteRoutes = require("./routes/noteRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const authLogRoutes = require("./routes/authLogRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const roleRoutes = require("./routes/roleRoutes");
 
 const app = express();
 
@@ -51,7 +52,7 @@ app.use("/api/notes", noteRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/auth-logs", authLogRoutes);
 app.use("/api/admin", adminRoutes);
-
+app.use("/api/roles", roleRoutes);
 app.use((req, res) => {
   res.status(404).json({
     success: false,

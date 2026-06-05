@@ -10,6 +10,7 @@ const {
 } = require("../controllers/dealController");
 
 const { protect } = require("../middlewares/authMiddleware");
+const checkPermission = require("../middlewares/checkPermission");
 
 const router = express.Router();
 
@@ -113,7 +114,7 @@ const router = express.Router();
  *       500:
  *         description: Internal server error
  */
-router.post("/", protect, createDeal);
+router.post("/", protect, checkPermission("deal", "creator"), createDeal);
 
 /**
  * @swagger
@@ -167,7 +168,7 @@ router.post("/", protect, createDeal);
  *       500:
  *         description: Internal server error
  */
-router.get("/", protect, getDeals);
+router.get("/", protect, checkPermission("deal", "viewer"), getDeals);
 
 /**
  * @swagger
@@ -219,7 +220,7 @@ router.get("/", protect, getDeals);
  *       500:
  *         description: Internal server error
  */
-router.patch("/:id/status", protect, updateDealStatus);
+router.patch("/:id/status", protect, checkPermission("deal", "editor"), updateDealStatus);
 
 /**
  * @swagger
@@ -249,7 +250,7 @@ router.patch("/:id/status", protect, updateDealStatus);
  *       500:
  *         description: Internal server error
  */
-router.get("/:id", protect, getDealById);
+router.get("/:id", protect, checkPermission("deal", "viewer"), getDealById);
 
 /**
  * @swagger
@@ -302,7 +303,7 @@ router.get("/:id", protect, getDealById);
  *       500:
  *         description: Internal server error
  */
-router.patch("/:id", protect, updateDeal);
+router.patch("/:id", protect, checkPermission("deal", "editor"), updateDeal);
 
 /**
  * @swagger
@@ -332,6 +333,6 @@ router.patch("/:id", protect, updateDeal);
  *       500:
  *         description: Internal server error
  */
-router.delete("/:id", protect, deleteDeal);
+router.delete("/:id", protect, checkPermission("deal", "deleter"), deleteDeal);
 
 module.exports = router;
