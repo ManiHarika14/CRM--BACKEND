@@ -15,15 +15,26 @@ const swaggerSpec = swaggerJsdoc({
     ],
     components: {
       securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
+        cookieAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "crm_token",
         },
       },
     },
   },
-  apis: ["./src/routes/*.js"],
+  apis: [
+    "./src/routes/authRoutes.js",
+    "./src/routes/userRoutes.js",
+    "./src/routes/leadRoutes.js",
+    "./src/routes/customerRoutes.js",
+    "./src/routes/dealRoutes.js",
+    "./src/routes/taskRoutes.js",
+    "./src/routes/noteRoutes.js",
+    "./src/routes/activityRoutes.js",
+    "./src/routes/authLogRoutes.js",
+    "./src/routes/adminRoutes.js",
+  ],
 });
 
 module.exports = swaggerSpec;
