@@ -8,14 +8,15 @@ datasource db {
 }
 
 model User {
-  i_id           Int            @default(autoincrement())
-  user_id        String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  name           String         @map("user_name") @db.VarChar(250)
-  email          String         @db.VarChar(250)
-  password_hash  String
-  role           String         @map("role_name") @db.VarChar(50)
-  status         Int            @default(1)
-  customer_logs  Customer_Log[]
+  i_id                   Int                 @default(autoincrement())
+  user_id                String              @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  name                   String              @map("user_name") @db.VarChar(250)
+  email                  String              @db.VarChar(250)
+  password_hash          String?
+  cognito_sub            String?             @db.VarChar(255)
+  role                   String?             @map("role_name") @db.VarChar(50)
+  status                 Int                 @default(1)
+  customer_logs Customer_Log[]
   leads          Lead[]
   lead_logs      Leads_Log[]
   deal_logs      DealLog[]
