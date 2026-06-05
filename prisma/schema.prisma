@@ -6,6 +6,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model User {
   i_id                   Int                 @default(autoincrement())
   user_id                String              @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
@@ -17,131 +18,138 @@ model User {
   status                 Int                 @default(1)
   customer_logs Customer_Log[]
   leads          Lead[]
-  lead_logs Leads_Log[]
-  deal_logs DealLog[]
-  task_logs Tasks_Log[]
-  note_logs Notes_Log[]
-  assigned_tasks Task[]    @relation("TaskAssignee")
-   @@map("crm_users")
+  lead_logs      Leads_Log[]
+  deal_logs      DealLog[]
+  task_logs      Tasks_Log[]
+  note_logs      Notes_Log[]
+  assigned_tasks Task[]         @relation("TaskAssignee")
+  authLogs       AuthLog[]
+  user_roles     UserRole[]
+
+  @@map("crm_users")
 }
+
 model Lead {
-  i_id                Int           @default(autoincrement())
-  id                  String        @id @default(uuid()) @db.Uuid
-  source              String?       @map("sources")@db.VarChar(50)
-  source_url          String?       @db.VarChar(100)
-  extraction_date     DateTime?     @default(now()) @db.Timestamp(6)
-  customer_id         String?       @db.Uuid
+  i_id                Int       @default(autoincrement())
+  id                  String    @id @default(uuid()) @db.Uuid
+  source              String?   @map("sources") @db.VarChar(50)
+  source_url          String?   @db.VarChar(100)
+  extraction_date     DateTime? @default(now()) @db.Timestamp(6)
+  customer_id         String?   @db.Uuid
   verification_status String?
   confidence          Float?
   crm_stage           String?
-  user_id             String?       @db.Uuid
-  customer Customer? @relation(fields: [customer_id], references: [id])
-  user     User?     @relation(fields: [user_id], references: [user_id])
+  user_id             String?   @db.Uuid
+  customer            Customer? @relation(fields: [customer_id], references: [id])
+  user                User?     @relation(fields: [user_id], references: [user_id])
 
-  comments LeadComment[]
-  lead_logs Leads_Log[]
+  comments   LeadComment[]
+  lead_logs  Leads_Log[]
   activities Activity[]
+
   @@map("crm_leads")
 }
 
 model LeadComment {
-  i_id                   Int                 @default(autoincrement())
-  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  lead_id                String              @db.Uuid
-  comment                String              @map("comment_text") @db.VarChar(250)
-  lead  Lead @relation(fields: [lead_id], references: [id])
+  i_id    Int    @default(autoincrement())
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id String @db.Uuid
+  comment String @map("comment_text") @db.VarChar(250)
+  lead    Lead   @relation(fields: [lead_id], references: [id])
+
   @@map("crm_lead_comments")
 }
 
 model Customer {
-  i_id          Int        @default(autoincrement())
-  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String     @map("cust_name")@db.VarChar(250)
-  email         String?    @db.VarChar(250)
-  customer_type String?    @db.VarChar(50)
-  status        Int?       @default(1)
+  i_id          Int                   @default(autoincrement())
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String                @map("cust_name") @db.VarChar(250)
+  email         String?               @db.VarChar(250)
+  customer_type String?               @db.VarChar(50)
+  status        Int?                  @default(1)
   properties    Customer_Properties[]
   customer_logs Customer_Log[]
   leads         Lead[]
   deals         Deal[]
-  tasks        Task[]
-  notes Note[]
-  activities Activity[]
+  tasks         Task[]
+  notes         Note[]
+  activities    Activity[]
 
   @@map("crm_customers")
 }
 
 model Deal {
-  i_id           Int         @default(autoincrement())
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id    String      @db.Uuid
-  offer          String?
-  status         Int?        @default(1)
-  comment        String?     @map("comment_text") @db.VarChar(250)
-  customer Customer @relation(fields: [customer_id], references: [id])
-  notes     Note[]
-  tasks     Task[]
-  deal_logs DealLog[]
-  activities Activity[]
-  
+  i_id        Int        @default(autoincrement())
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id String     @db.Uuid
+  offer       String?
+  status      Int?       @default(1)
+  comment     String?    @map("comment_text") @db.VarChar(250)
+  customer    Customer   @relation(fields: [customer_id], references: [id])
+  notes       Note[]
+  tasks       Task[]
+  deal_logs   DealLog[]
+  activities  Activity[]
+
   @@map("crm_deals")
 }
 
 model Task {
-  i_id           Int         @default(autoincrement())
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id    String?     @db.Uuid
-  deal_id        String?     @db.Uuid
-  assigner_to    String?     @db.Uuid
-  assignedUser   User?    @relation("TaskAssignee",fields: [assigner_to], references: [user_id])
-  title          String
-  description    String?
-  status         Int?        @default(1)
-  priority       Int?        @default(1)
-  due_date       DateTime?   @db.Timestamp(6)
-  comment   String?     @map("comment_text") @db.VarChar(250)
-  deal      Deal?       @relation(fields: [deal_id], references: [id])
-  customer  Customer?   @relation(fields: [customer_id], references: [id])
-  notes     Note[]
-  task_logs Tasks_Log[]
+  i_id         Int         @default(autoincrement())
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id  String?     @db.Uuid
+  deal_id      String?     @db.Uuid
+  assigner_to  String?     @db.Uuid
+  assignedUser User?       @relation("TaskAssignee", fields: [assigner_to], references: [user_id])
+  title        String
+  description  String?
+  status       Int?        @default(1)
+  priority     Int?        @default(1)
+  due_date     DateTime?   @db.Timestamp(6)
+  comment      String?     @map("comment_text") @db.VarChar(250)
+  deal         Deal?       @relation(fields: [deal_id], references: [id])
+  customer     Customer?   @relation(fields: [customer_id], references: [id])
+  task_logs    Tasks_Log[]
+  notes        Note[]
+  activities   Activity[]
 
   @@map("crm_tasks")
 }
 
 model Note {
-  i_id           Int         @default(autoincrement())
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id    String?     @db.Uuid
-  deal_id        String?     @db.Uuid
-  task_id        String?     @db.Uuid
-  note           String
-  deal Deal? @relation(fields: [deal_id], references: [id])
-  customer Customer? @relation(fields: [customer_id], references: [id])
-  task     Task?     @relation(fields: [task_id], references: [id])
+  i_id        Int       @default(autoincrement())
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id String?   @db.Uuid
+  deal_id     String?   @db.Uuid
+  task_id     String?   @db.Uuid
+  note        String
+  deal        Deal?     @relation(fields: [deal_id], references: [id])
+  customer    Customer? @relation(fields: [customer_id], references: [id])
+  task        Task?     @relation(fields: [task_id], references: [id])
 
-  note_logs Notes_Log[]
+  note_logs  Notes_Log[]
   activities Activity[]
 
   @@map("crm_notes")
 }
 
 model Activity {
-  i_id        Int     @default(autoincrement())
-  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entity_type String? @db.VarChar(50)
-  entity_id   String? @db.Uuid
-  action      String? @map("activity")@db.VarChar(100)
+  i_id        Int       @default(autoincrement())
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type String?   @db.VarChar(50)
+  entity_id   String?   @db.Uuid
+  action      String?   @map("activity") @db.VarChar(100)
   description String?
-  lead_id     String? @db.VarChar(50)
-  customer_id String? @db.VarChar(50)
-  deal_id     String? @db.VarChar(50)
-  task_id     String? @db.VarChar(50)
-  note_id     String? @db.VarChar(50)
-  lead     Lead?     @relation(fields: [lead_id], references: [id])
-  customer Customer? @relation(fields: [customer_id], references: [id])
-  deal     Deal?     @relation(fields: [deal_id], references: [id])
-  task     Task?     @relation(fields: [task_id], references: [id])
-  note     Note?     @relation(fields: [note_id], references: [id])
+  lead_id     String?   @db.Uuid
+  customer_id String?   @db.Uuid
+  deal_id     String?   @db.Uuid
+  task_id     String?   @db.Uuid
+  note_id     String?   @db.Uuid
+  lead        Lead?     @relation(fields: [lead_id], references: [id])
+  customer    Customer? @relation(fields: [customer_id], references: [id])
+  deal        Deal?     @relation(fields: [deal_id], references: [id])
+  task        Task?     @relation(fields: [task_id], references: [id])
+  note        Note?     @relation(fields: [note_id], references: [id])
 
   @@map("crm_activities")
 }
@@ -151,21 +159,23 @@ model AuthLog {
   user_id     String    @db.Uuid
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
-      
+
+  user User @relation(fields: [user_id], references: [user_id])
 
   @@map("crm_auth_logs")
 }
 
 model Customer_Properties {
-  i_id         Int     @id @default(autoincrement())
-  id           String? @db.Uuid
-  email        String? @db.VarChar(250)
-  phone        String? @db.VarChar(250)
-  address      String? @db.VarChar(250)
-  company_name String? @db.VarChar(250)
-  website      String? @db.VarChar(250)
-  contact_info String? @db.VarChar(250)
+  i_id         Int       @id @default(autoincrement())
+  id           String?   @db.Uuid
+  email        String?   @db.VarChar(250)
+  phone        String?   @db.VarChar(250)
+  address      String?   @db.VarChar(250)
+  company_name String?   @db.VarChar(250)
+  website      String?   @db.VarChar(250)
+  contact_info String?   @db.VarChar(250)
   customer     Customer? @relation(fields: [id], references: [id])
+
   @@map("crm_customer_properties")
 }
 
@@ -175,18 +185,18 @@ model DealLog {
   user_id     String    @db.Uuid
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
-  deal Deal @relation(fields: [id], references: [id])
-  user User @relation(fields: [user_id], references: [user_id])
-      
+  deal        Deal      @relation(fields: [id], references: [id])
+  user        User      @relation(fields: [user_id], references: [user_id])
+
   @@map("crm_deals_log")
 }
 
 model Lead_Comments_Log {
-  i_id               Int         @id @default(autoincrement())
-  id                 String      @db.Uuid
-  user_id            String      @db.Uuid
-  date_time          DateTime?   @default(now()) @db.Timestamp(6)
-  
+  i_id      Int       @id @default(autoincrement())
+  id        String    @db.Uuid
+  user_id   String    @db.Uuid
+  date_time DateTime? @default(now()) @db.Timestamp(6)
+
   @@map("crm_lead_comments_log")
 }
 
@@ -196,9 +206,8 @@ model Leads_Log {
   user_id     String    @db.Uuid
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
-   lead Lead @relation(fields: [id], references: [id])
-  user User @relation(fields: [user_id], references: [user_id])
-      
+  lead        Lead      @relation(fields: [id], references: [id])
+  user        User      @relation(fields: [user_id], references: [user_id])
 
   @@map("crm_leads_log")
 }
@@ -209,9 +218,9 @@ model Notes_Log {
   user_id     String    @db.Uuid
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
-  note Note @relation(fields: [id], references: [id])
-  user User @relation(fields: [user_id], references: [user_id])
- 
+  note        Note      @relation(fields: [id], references: [id])
+  user        User      @relation(fields: [user_id], references: [user_id])
+
   @@map("crm_notes_log")
 }
 
@@ -221,9 +230,9 @@ model Tasks_Log {
   user_id     String    @db.Uuid
   log_type_id Int
   date_time   DateTime? @default(now()) @db.Timestamp(6)
-   task       Task @relation(fields: [id], references: [id])
-  user        User @relation(fields: [user_id], references: [user_id])
-  
+  task        Task      @relation(fields: [id], references: [id])
+  user        User      @relation(fields: [user_id], references: [user_id])
+
   @@map("crm_tasks_log")
 }
 
@@ -232,10 +241,9 @@ model Users_Log {
   id          String    @db.Uuid
   log_type_id Int?
   date_time   DateTime? @default(now()) @db.Timestamp(6)
-       
+
   @@map("crm_users_log")
 }
-
 
 model Customer_Log {
   i_id        Int      @id @default(autoincrement())
@@ -243,9 +251,48 @@ model Customer_Log {
   user_id     String   @db.Uuid
   log_type_id Int
   date_time   DateTime @default(now())
-  customer Customer @relation(fields: [id], references: [id])
-  user     User     @relation(fields: [user_id], references: [user_id])
-       
+  customer    Customer @relation(fields: [id], references: [id])
+  user        User     @relation(fields: [user_id], references: [user_id])
+
   @@map("crm_customer_log")
 }
 
+model Role {
+  i_id Int    @default(autoincrement())
+  id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  role_name   String  @unique @db.VarChar(100)
+  description String?
+
+  permissions RolePermission[]
+  user_roles  UserRole[]
+
+  @@map("crm_roles")
+}
+
+model RolePermission {
+  i_id Int    @default(autoincrement())
+  id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  role_id String @db.Uuid
+
+  resource    String @db.VarChar(50)
+  access_type String @db.VarChar(50)
+
+  role Role @relation(fields: [role_id], references: [id])
+
+  @@map("crm_role_permissions")
+}
+
+model UserRole {
+  i_id Int    @default(autoincrement())
+  id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  user_id String @db.Uuid
+  role_id String @db.Uuid
+
+  user User @relation(fields: [user_id], references: [user_id])
+  role Role @relation(fields: [role_id], references: [id])
+
+  @@map("crm_user_roles")
+}

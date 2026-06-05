@@ -10,6 +10,7 @@ const {
 } = require("../controllers/taskController");
 
 const { protect } = require("../middlewares/authMiddleware");
+const checkPermission = require("../middlewares/checkPermission");
 
 const router = express.Router();
 
@@ -155,7 +156,7 @@ const router = express.Router();
  *       500:
  *         description: Internal server error
  */
-router.post("/", protect, createTask);
+router.post("/", protect, checkPermission("task", "creator"), createTask);
 
 /**
  * @swagger
@@ -227,7 +228,7 @@ router.post("/", protect, createTask);
  *       500:
  *         description: Internal server error
  */
-router.get("/", protect, getTasks);
+router.get("/", protect, checkPermission("task", "viewer"), getTasks);
 
 /**
  * @swagger
@@ -277,7 +278,7 @@ router.get("/", protect, getTasks);
  *       500:
  *         description: Internal server error
  */
-router.patch("/:id/status", protect, updateTaskStatus);
+router.patch("/:id/status", protect, checkPermission("task", "editor"), updateTaskStatus);
 
 /**
  * @swagger
@@ -307,7 +308,7 @@ router.patch("/:id/status", protect, updateTaskStatus);
  *       500:
  *         description: Internal server error
  */
-router.get("/:id", protect, getTaskById);
+router.get("/:id", protect, checkPermission("task", "viewer"), getTaskById);
 
 /**
  * @swagger
@@ -384,7 +385,7 @@ router.get("/:id", protect, getTaskById);
  *       500:
  *         description: Internal server error
  */
-router.patch("/:id", protect, updateTask);
+router.patch("/:id", protect, checkPermission("task", "editor"), updateTask);
 
 /**
  * @swagger
@@ -414,6 +415,6 @@ router.patch("/:id", protect, updateTask);
  *       500:
  *         description: Internal server error
  */
-router.delete("/:id", protect, deleteTask);
+router.delete("/:id", protect, checkPermission("task", "deleter"), deleteTask);
 
 module.exports = router;

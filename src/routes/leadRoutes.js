@@ -14,6 +14,7 @@ const {
 } = require("../controllers/leadController");
 
 const { protect } = require("../middlewares/authMiddleware");
+const checkPermission = require("../middlewares/checkPermission");
 
 const router = express.Router();
 
@@ -83,7 +84,7 @@ router.use(protect);
  *       500:
  *         description: Server error while importing leads
  */
-router.post("/import", upload.single("file"), importLeads);
+router.post("/import", checkPermission("lead", "creator"), upload.single("file"), importLeads);
 
 /**
  * @swagger
@@ -158,7 +159,7 @@ router.post("/import", upload.single("file"), importLeads);
  *       201:
  *         description: Lead created successfully
  */
-router.post("/", createLead);
+router.post("/", checkPermission("lead", "creator"), createLead);
 
 /**
  * @swagger
@@ -207,7 +208,7 @@ router.post("/", createLead);
  *       200:
  *         description: Leads fetched successfully
  */
-router.get("/", getLeads);
+router.get("/", checkPermission("lead", "viewer"), getLeads);
 
 /**
  * @swagger
@@ -228,7 +229,7 @@ router.get("/", getLeads);
  *       200:
  *         description: Lead fetched successfully
  */
-router.get("/:id", getLeadById);
+router.get("/:id", checkPermission("lead", "viewer"), getLeadById);
 
 /**
  * @swagger
@@ -272,7 +273,7 @@ router.get("/:id", getLeadById);
  *       200:
  *         description: Lead updated successfully
  */
-router.patch("/:id", updateLead);
+router.patch("/:id", checkPermission("lead", "editor"), updateLead);
 
 /**
  * @swagger
@@ -307,7 +308,7 @@ router.patch("/:id", updateLead);
  *       200:
  *         description: Lead assigned successfully
  */
-router.patch("/:id/assign", assignLead);
+router.patch("/:id/assign", checkPermission("lead", "editor"), assignLead);
 
 /**
  * @swagger
@@ -343,7 +344,7 @@ router.patch("/:id/assign", assignLead);
  *       200:
  *         description: Lead stage updated successfully
  */
-router.patch("/:id/stage", updateLeadStage);
+router.patch("/:id/stage", checkPermission("lead", "editor"), updateLeadStage);
 
 /**
  * @swagger
@@ -379,7 +380,7 @@ router.patch("/:id/stage", updateLeadStage);
  *       200:
  *         description: Lead verification status updated successfully
  */
-router.patch("/:id/verification", updateVerificationStatus);
+router.patch("/:id/verification", checkPermission("lead", "editor"), updateVerificationStatus);
 
 /**
  * @swagger
@@ -400,6 +401,6 @@ router.patch("/:id/verification", updateVerificationStatus);
  *       200:
  *         description: Lead deleted successfully
  */
-router.delete("/:id", deleteLead);
+router.delete("/:id", checkPermission("lead", "deleter"), deleteLead);
 
 module.exports = router;
