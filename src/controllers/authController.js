@@ -30,7 +30,7 @@ const toCognitoUsername = (email) => email.replace("@", "_at_");
 
 const register = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -49,39 +49,38 @@ const register = async (req, res) => {
 
     const username = toCognitoUsername(email);
 
-    const signUpResponse = await cognitoClient.send(
-      new SignUpCommand({
-        ClientId: env.COGNITO_CLIENT_ID,
-        Username: username,
-        Password: password,
-        UserAttributes: [
-          { Name: "email", Value: email },
-          { Name: "name", Value: email },
-          { Name: "gender", Value: "not_specified" },
-          { Name: "address", Value: "not_provided" },
-          { Name: "phone_number", Value: "+10000000000" },
-          { Name: "updated_at", Value: String(Math.floor(Date.now() / 1000)) },
-        ],
-      })
-    );
+    const tempUser = await prisma.user.create({
+      data: { name: email, email, role: null, status: 0, password_hash: null, cognito_sub: null },
+      select: { user_id: true, email: true, role: true, status: true },
+    });
 
-    const cognito_sub = signUpResponse.UserSub;
+    let cognito_sub;
+    try {
+      const signUpResponse = await cognitoClient.send(
+        new SignUpCommand({
+          ClientId: env.COGNITO_CLIENT_ID,
+          Username: username,
+          Password: password,
+          UserAttributes: [
+            { Name: "email", Value: email },
+            { Name: "name", Value: email },
+            { Name: "gender", Value: "not_specified" },
+            { Name: "address", Value: "not_provided" },
+            { Name: "phone_number", Value: "+10000000000" },
+            { Name: "updated_at", Value: String(Math.floor(Date.now() / 1000)) },
+          ],
+        })
+      );
+      cognito_sub = signUpResponse.UserSub;
+    } catch (cognitoError) {
+      await prisma.user.delete({ where: { user_id: tempUser.user_id } }).catch(() => {});
+      throw cognitoError;
+    }
 
-    const user = await prisma.user.create({
-      data: {
-        name: email,
-        email,
-        role: role || null,
-        status: 0,
-        password_hash: null,
-        cognito_sub,
-      },
-      select: {
-        user_id: true,
-        email: true,
-        role: true,
-        status: true,
-      },
+    const user = await prisma.user.update({
+      where: { user_id: tempUser.user_id },
+      data: { cognito_sub },
+      select: { user_id: true, email: true, role: true, status: true },
     });
 
     await createAuthLog({ req, user_id: user.user_id, action: "user_registered" });
@@ -224,16 +223,17 @@ const login = async (req, res) => {
       })
     );
 
+    if (!authResponse.AuthenticationResult) {
+      return res.status(403).json({ success: false, message: "Login challenge required. Please contact support." });
+    }
+
     const { AccessToken, RefreshToken } = authResponse.AuthenticationResult;
 
     res.cookie("crm_token", AccessToken, ACCESS_COOKIE_OPTIONS);
     res.cookie("crm_refresh_token", RefreshToken, REFRESH_COOKIE_OPTIONS);
 
-    await prisma.users_Log.create({
-      data: { id: user.user_id, log_type_id: 1, date_time: new Date() },
-    });
-
-    await createAuthLog({ req, user_id: user.user_id, action: "login_success" });
+    prisma.users_Log.create({ data: { id: user.user_id, log_type_id: 1, date_time: new Date() } }).catch((e) => console.error("users_Log error:", e.message));
+    createAuthLog({ req, user_id: user.user_id, action: "login_success" });
 
     return res.status(200).json({
       success: true,
@@ -273,7 +273,25 @@ const refresh = async (req, res) => {
       })
     );
 
+    if (!authResponse.AuthenticationResult) {
+      return res.status(401).json({ success: false, message: "Session expired, please log in again" });
+    }
+
     const { AccessToken } = authResponse.AuthenticationResult;
+
+    const { CognitoJwtVerifier } = require("aws-jwt-verify");
+    const verifier = CognitoJwtVerifier.create({
+      userPoolId: env.COGNITO_USER_POOL_ID,
+      clientId: env.COGNITO_CLIENT_ID,
+      tokenUse: "access",
+    });
+    const payload = await verifier.verify(AccessToken);
+    const user = await prisma.user.findFirst({ where: { cognito_sub: payload.sub } });
+    if (!user || user.status !== 1) {
+      res.clearCookie("crm_token", COOKIE_BASE);
+      res.clearCookie("crm_refresh_token", COOKIE_BASE);
+      return res.status(401).json({ success: false, message: "Account is not active" });
+    }
 
     res.cookie("crm_token", AccessToken, ACCESS_COOKIE_OPTIONS);
 
