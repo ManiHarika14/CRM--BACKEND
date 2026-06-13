@@ -1,127 +1,138 @@
 {
-  "schema_version": "1.1",
-  "type_definitions": [
-    {
-      "type": "user"
-    },
-    {
-      "type": "role",
-      "relations": {
-        "member": {
-          "this": {}
-        }
-      },
-      "metadata": {
-        "relations": {
-          "member": {
-            "directly_related_user_types": [
-              {
-                "type": "user"
-              }
-            ]
+"schema_version": "1.1",
+"type_definitions": [
+{
+"type": "user"
+},
+
+{
+  "type": "role",
+  "relations": {
+    "member": {
+      "this": {}
+    }
+  },
+  "metadata": {
+    "relations": {
+      "member": {
+        "directly_related_user_types": [
+          {
+            "type": "user"
           }
-        }
-      }
-    },
-
-    {
-      "type": "lead",
-      "relations": {
-        "viewer": { "this": {} },
-        "creator": { "this": {} },
-        "commenter": { "this": {} },
-        "editor": { "this": {} },
-        "deleter": { "this": {} }
-      },
-      "metadata": {
-        "relations": {
-          "viewer": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "creator": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "commenter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "editor": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "deleter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] }
-        }
-      }
-    },
-
-    {
-      "type": "customer",
-      "relations": {
-        "viewer": { "this": {} },
-        "creator": { "this": {} },
-        "commenter": { "this": {} },
-        "editor": { "this": {} },
-        "deleter": { "this": {} }
-      },
-      "metadata": {
-        "relations": {
-          "viewer": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "creator": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "commenter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "editor": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "deleter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] }
-        }
-      }
-    },
-
-    {
-      "type": "deal",
-      "relations": {
-        "viewer": { "this": {} },
-        "creator": { "this": {} },
-        "commenter": { "this": {} },
-        "editor": { "this": {} },
-        "deleter": { "this": {} }
-      },
-      "metadata": {
-        "relations": {
-          "viewer": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "creator": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "commenter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "editor": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "deleter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] }
-        }
-      }
-    },
-
-    {
-      "type": "task",
-      "relations": {
-        "viewer": { "this": {} },
-        "creator": { "this": {} },
-        "commenter": { "this": {} },
-        "editor": { "this": {} },
-        "deleter": { "this": {} }
-      },
-      "metadata": {
-        "relations": {
-          "viewer": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "creator": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "commenter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "editor": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "deleter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] }
-        }
-      }
-    },
-
-    {
-      "type": "note",
-      "relations": {
-        "viewer": { "this": {} },
-        "creator": { "this": {} },
-        "commenter": { "this": {} },
-        "editor": { "this": {} },
-        "deleter": { "this": {} }
-      },
-      "metadata": {
-        "relations": {
-          "viewer": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "creator": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "commenter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "editor": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] },
-          "deleter": { "directly_related_user_types": [{ "type": "role", "relation": "member" }] }
-        }
+        ]
       }
     }
-  ]
+  }
+},
+
+{
+  "type": "resource",
+  "relations": {
+    "viewer": {
+      "this": {}
+    },
+    "creator": {
+      "this": {}
+    },
+    "editor": {
+      "this": {}
+    },
+    "deleter": {
+      "this": {}
+    },
+    "commenter": {
+      "this": {}
+    },
+    "approver": {
+      "this": {}
+    },
+    "reviewer": {
+      "this": {}
+    },
+    "assigner": {
+      "this": {}
+    },
+    "exporter": {
+      "this": {}
+    }
+  },
+  "metadata": {
+    "relations": {
+      "viewer": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "creator": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "editor": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "deleter": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "commenter": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "approver": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "reviewer": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "assigner": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      },
+      "exporter": {
+        "directly_related_user_types": [
+          {
+            "type": "role",
+            "relation": "member"
+          }
+        ]
+      }
+    }
+  }
+}
+
+]
 }

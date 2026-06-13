@@ -30,7 +30,7 @@ const toCognitoUsername = (email) => email.replace("@", "_at_");
 
 const register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -50,7 +50,7 @@ const register = async (req, res) => {
     const username = toCognitoUsername(email);
 
     const tempUser = await prisma.user.create({
-      data: { name: email, email, role: null, status: 0, password_hash: null, cognito_sub: null },
+      data: { name: email, email, role: role, status: 0, password_hash: null, cognito_sub: null },
       select: { user_id: true, email: true, role: true, status: true },
     });
 

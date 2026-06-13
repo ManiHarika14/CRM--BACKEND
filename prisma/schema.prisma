@@ -263,6 +263,7 @@ model Role {
 
   role_name   String  @unique @db.VarChar(100)
   description String?
+  permissions_json Json? @db.JsonB
 
   permissions RolePermission[]
   user_roles  UserRole[]

@@ -32,6 +32,7 @@ const createRole = async (req, res) => {
       data: {
         role_name,
         description,
+        permissions_json: {},
       },
     });
 
@@ -95,6 +96,20 @@ if (!role) {
     message: "Role not found",
   });
 }
+const existingAssignment =
+  await prisma.userRole.findFirst({
+    where: {
+      user_id,
+      role_id,
+    },
+  });
+
+if (existingAssignment) {
+  return res.status(409).json({
+    success: false,
+    message: "Role already assigned to user",
+  });
+}
 
 const roleAssignment = await prisma.userRole.create({
   data: {
@@ -122,17 +137,37 @@ await assignRoleToUser(
     });
   }
 };
+
+
 const addPermission = async (req, res) => {
   try {
     const { roleId } = req.params;
     const { resource, access_type } = req.body;
+     if (!resource || !access_type) {
+    return res.status(400).json({
+    success: false,
+    message: "resource and access_type are required",
+  });
+}
+    if (
+  typeof resource !== "string" ||
+  typeof access_type !== "string"
+) {
+  return res.status(400).json({
+    success: false,
+    message: "resource and access_type must be strings",
+  });
+}
+  const normalizedResource =
+  resource.trim().toLowerCase();
 
-    if (!resource || !access_type) {
-      return res.status(400).json({
-        success: false,
-        message: "resource and access_type are required",
-      });
-    }
+  const normalizedAccessType =
+  access_type.trim().toLowerCase();
+
+  
+ 
+
+   
 
     const role = await prisma.role.findUnique({
       where: {
@@ -147,25 +182,42 @@ const addPermission = async (req, res) => {
       });
     }
 
-    const permission = await prisma.rolePermission.create({
+  let permissions = role.permissions_json || {};
+ if (!permissions[normalizedResource]) {
+  permissions[normalizedResource] = [];
+}
+
+const permissionExists =
+  permissions[normalizedResource]?.includes(
+    normalizedAccessType
+  );
+
+if (!permissionExists) {
+  permissions[normalizedResource].push(
+    normalizedAccessType
+  );
+
+  await assignPermissionToRole(
+    role.role_name,
+    normalizedResource,
+    normalizedAccessType
+  );
+}
+
+const updatedRole = await prisma.role.update({
+  where: {
+    id: roleId,
+  },
   data: {
-    role_id: roleId,
-    resource,
-    access_type,
+    permissions_json: permissions,
   },
 });
 
-await assignPermissionToRole(
-  role.role_name,
-  resource,
-  access_type
-);
-
-    return res.status(201).json({
-      success: true,
-      message: "Permission added successfully",
-      data: permission,
-    });
+return res.status(200).json({
+  success: true,
+  message: "Permission added successfully",
+  data: updatedRole,
+});
 
   } catch (error) {
     console.error(error);
@@ -181,15 +233,22 @@ const getRolePermissions = async (req, res) => {
   try {
     const { roleId } = req.params;
 
-    const permissions = await prisma.rolePermission.findMany({
+    const role = await prisma.role.findUnique({
       where: {
-        role_id: roleId,
+        id: roleId,
       },
     });
 
+    if (!role) {
+      return res.status(404).json({
+        success: false,
+        message: "Role not found",
+      });
+    }
+
     return res.status(200).json({
       success: true,
-      data: permissions,
+      data: role.permissions_json || {},
     });
 
   } catch (error) {

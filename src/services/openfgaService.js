@@ -26,7 +26,7 @@ const assignPermissionToRole = async (
       {
         user: `role:${safeRoleName}#member`,
         relation: accessType,
-        object: `${resource}:module`,
+        object: `resource:${resource}`,
       },
     ],
   });
@@ -40,7 +40,7 @@ const checkPermission = async (
   return await fgaClient.check({
     user: `user:${userId}`,
     relation: accessType,
-    object: `${resource}:module`,
+    object: `resource:${resource}`,
   });
 };
 
