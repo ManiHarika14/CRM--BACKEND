@@ -106,11 +106,30 @@ const createCustomer = async (req, res) => {
     }
 
     const validationErrors = validateCustomerPayload(req.body, "create");
+    if (
+      req.body.phone &&
+      !/^\d{10}$/.test(req.body.phone)
+    ) {
+      return res.status(400).json({
+        message: "Phone number must contain exactly 10 digits",
+      });
+    }
 
     if (validationErrors.length > 0) {
       return res.status(400).json({
         message: "Validation failed",
         errors: validationErrors,
+      });
+    }
+    if (req.body.address && req.body.address.length > 250) {
+      return res.status(400).json({
+        message: "Address cannot exceed 250 characters",
+      });
+    }
+
+    if (req.body.contact_info && req.body.contact_info.length > 250) {
+      return res.status(400).json({
+        message: "Contact Info cannot exceed 250 characters",
       });
     }
 
@@ -132,23 +151,23 @@ const createCustomer = async (req, res) => {
       data: buildCustomerData(req.body),
     });
     await prisma.customer_Properties.create({
-  data: {
-    id: customer.id,
-    email: req.body.email || null,
-    phone: req.body.phone || null,
-    address: req.body.address || null,
-    company_name: req.body.company_name || null,
-    website: req.body.website || null,
-    contact_info: req.body.contact_info || null,
-  },
-});
-   await prisma.customer_Log.create({
-  data: {
-    id: customer.id,
-    user_id: req.user.user_id,
-    log_type_id: 1,
-  },
-});
+      data: {
+        id: customer.id,
+        email: req.body.email || null,
+        phone: req.body.phone || null,
+        address: req.body.address || null,
+        company_name: req.body.company_name || null,
+        website: req.body.website || null,
+        contact_info: req.body.contact_info || null,
+      },
+    });
+    await prisma.customer_Log.create({
+      data: {
+        id: customer.id,
+        user_id: loggedInUserId,
+        log_type_id: 1,
+      },
+    });
     return res.status(201).json({
       message: "Customer created successfully",
       customer,
@@ -209,30 +228,33 @@ const getCustomers = async (req, res) => {
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where,
-
         include: {
           properties: true,
-          
           customer_logs: {
             orderBy: {
               date_time: "desc",
             },
             take: 1,
-
             include: {
-              user: true,
+              user: {
+                select: {
+                  user_id: true,
+                  name: true,
+                  email: true,
+                },
+              },
             },
           },
         },
         orderBy: {
-          i_id : "desc",
+          i_id: "desc",
         },
         skip,
         take: limitNumber,
       }),
       prisma.customer.count({ where }),
     ]);
-    console.log(JSON.stringify(customers, null, 2));
+
     return res.status(200).json({
       message: "Customers fetched successfully",
       pagination: {
@@ -261,9 +283,24 @@ const getCustomerById = async (req, res) => {
       return res.status(400).json({ message: "Invalid customer id" });
     }
 
-    const customer = await prisma.customer.findUnique({ 
+    const customer = await prisma.customer.findUnique({
       where: { id },
-      
+      include: {
+        properties: true,
+        customer_logs: {
+          orderBy: { date_time: "desc" },
+          take: 1,
+          include: {
+            user: {
+              select: {
+                user_id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!customer) {
@@ -307,6 +344,14 @@ const updateCustomer = async (req, res) => {
         errors: validationErrors,
       });
     }
+    if (
+      req.body.phone &&
+      !/^\d{10}$/.test(req.body.phone)
+    ) {
+      return res.status(400).json({
+        message: "Phone number must contain exactly 10 digits",
+      });
+    }
 
     const existingCustomer = await prisma.customer.findUnique({ where: { id } });
 
@@ -335,15 +380,14 @@ const updateCustomer = async (req, res) => {
       where: { id },
       data: buildCustomerData(req.body),
     });
-    console.log("Customer Updated:", customer.id);
+
     await prisma.customer_Log.create({
-  data: {
-    id: customer.id,
-    user_id: req.user.user_id,
-    log_type_id: 2,
-  },
-});
-console.log("Customer Log Created");
+      data: {
+        id: customer.id,
+        user_id: loggedInUserId,
+        log_type_id: 2,
+      },
+    });
 
     return res.status(200).json({
       message: "Customer updated successfully",
@@ -374,8 +418,16 @@ const convertLeadToCustomer = async (req, res) => {
       return res.status(400).json({ message: "Invalid lead id" });
     }
 
+    // ✅ FIX: Fetch lead WITH its nested customer and properties so we can copy data
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
+      include: {
+        customer: {
+          include: {
+            properties: true,
+          },
+        },
+      },
     });
 
     if (!lead) {
@@ -412,9 +464,41 @@ const convertLeadToCustomer = async (req, res) => {
       });
     }
 
+    // ✅ FIX: Pull existing lead customer data to copy into new standalone customer
+    const leadCustomer = lead.customer;
+    const leadProperties = leadCustomer?.properties?.[0];
+
     const result = await prisma.$transaction(async (tx) => {
+      // ✅ FIX: Create customer with name + email copied from the lead's customer record
       const createdCustomer = await tx.customer.create({
-        data: { customer_type, status: 1 },
+        data: {
+          customer_type,
+          status: 1,
+          name: leadCustomer?.name || "Unnamed",
+          email: leadCustomer?.email || null,
+        },
+      });
+
+      // ✅ FIX: Also copy properties (phone, address, company_name, website) from lead
+      await tx.customer_Properties.create({
+        data: {
+          id: createdCustomer.id,
+          email: leadCustomer?.email || null,
+          phone: leadProperties?.phone || null,
+          address: leadProperties?.address || null,
+          company_name: leadProperties?.company_name || null,
+          website: leadProperties?.website || null,
+          contact_info: leadProperties?.contact_info || null,
+        },
+      });
+
+      // ✅ FIX: Log with the correct loggedInUserId (not req.user.user_id which may fail)
+      await tx.customer_Log.create({
+        data: {
+          id: createdCustomer.id,
+          user_id: loggedInUserId,
+          log_type_id: 1,
+        },
       });
 
       await tx.lead.update({

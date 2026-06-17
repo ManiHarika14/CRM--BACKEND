@@ -280,6 +280,39 @@ const createLead = async (req, res) => {
       company_name,
       website,
     } = req.body;
+    if (!lead_type?.trim()) {
+  return res.status(400).json({
+    success: false,
+    message: "Lead Type is required",
+  });
+}
+
+if (!name?.trim()) {
+  return res.status(400).json({
+    success: false,
+    message: "Name is required",
+  });
+}
+
+if (!email?.trim()) {
+  return res.status(400).json({
+    success: false,
+    message: "Email is required",
+  });
+}
+
+if (!/^\d{10}$/.test(phone)) {
+  return res.status(400).json({
+    success: false,
+    message: "Phone number must contain exactly 10 digits",
+  });
+}
+if (!source) {
+  return res.status(400).json({
+    success: false,
+    message: "Source is required",
+  });
+}
     
     console.log("customer_id:", customer_id);
 
@@ -303,6 +336,13 @@ const createLead = async (req, res) => {
     email,
     customer_type: lead_type,
     status: 1,
+  },
+});
+await prisma.customer_Log.create({
+  data: {
+    id: customer.id,
+    user_id: req.user.user_id, // logged-in user id
+    log_type_id: 1,
   },
 });
 
